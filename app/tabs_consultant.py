@@ -47,11 +47,16 @@ def render_consultant(ctx: ConsultantContext) -> None:
         st.info("I couldn't confidently match that to one of the questions I can answer -- try one below:")
 
     st.write("**Questions I can answer:**")
-    for question, handler in QUESTIONS:
+    for question, _handler in QUESTIONS:
         if st.button(question, key=f"consultant_q_{question}"):
-            st.session_state["consultant_selected_answer"] = handler(ctx)
+            st.session_state["consultant_selected_question"] = question
 
-    selected = st.session_state.get("consultant_selected_answer")
-    if selected and not question_text:
-        st.divider()
-        _render_answer(selected)
+    # Store the *question* and recompute the answer every rerun (handlers are sub-millisecond,
+    # measured) -- storing the computed answer froze it against the context it was built from,
+    # so switching fuel or toggling weather kept showing the old fuel's answer (audit finding F2).
+    selected_question = st.session_state.get("consultant_selected_question")
+    if selected_question and not question_text:
+        handler = dict(QUESTIONS).get(selected_question)
+        if handler:
+            st.divider()
+            _render_answer(handler(ctx))
