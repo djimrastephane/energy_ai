@@ -73,6 +73,9 @@ def render_cost_intelligence(fuel_clean_dfs: dict[EnergyType, pd.DataFrame], wea
     st.subheader("Forecast bill by fuel")
     if st.button("Compute multi-fuel forecast comparison"):
         st.session_state["multi_fuel_forecast_requested"] = True
+        # Restart immediately so main() computes the comparison on a run where the flag is
+        # already set -- removes the old cross-tab render-order dependency (audit finding F7).
+        st.rerun()
 
     if not st.session_state.get("multi_fuel_forecast_requested"):
         st.info(
@@ -100,9 +103,7 @@ def render_cost_intelligence(fuel_clean_dfs: dict[EnergyType, pd.DataFrame], wea
             "likely_gbp": "Most likely (£)",
             "worst_gbp": "Worst plausible (£)",
         }
-    ).round(2)
+    ).round(0)
     st.dataframe(bill_display, hide_index=True, width="stretch")
     if comparison.divergence_note:
         st.info(comparison.divergence_note)
-
-    st.session_state["multi_fuel_forecasts"] = forecast_results

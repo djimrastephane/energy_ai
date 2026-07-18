@@ -64,7 +64,12 @@ from tabs_phase2 import (  # noqa: E402
     render_seasonality,
     render_weather_adjustment,
 )
-from tabs_phase3 import generate_forecast_cached, render_anomalies, render_forecasting  # noqa: E402
+from tabs_phase3 import (  # noqa: E402
+    generate_forecast_cached,
+    generate_multi_fuel_forecast_cached,
+    render_anomalies,
+    render_forecasting,
+)
 
 from src.anomalies import detect_anomalies  # noqa: E402
 from src.changepoints import detect_changepoints  # noqa: E402
@@ -126,6 +131,15 @@ def main() -> None:
         fuel_frames, weather_enabled
     )
 
+    # Owned here (not in session state) so every consumer sees the same, current-data-consistent
+    # result: the Cost Intelligence button sets the request flag and reruns, and the cached
+    # generator makes this a cache hit on every rerun after the first (audit finding F7).
+    multi_fuel_forecasts = (
+        generate_multi_fuel_forecast_cached(fuel_frames, horizon=12)
+        if st.session_state.get("multi_fuel_forecast_requested")
+        else None
+    )
+
     analyst_report = build_report(
         clean,
         report,
@@ -148,7 +162,7 @@ def main() -> None:
         fuel_energy_results=fuel_energy_results,
         anomalies=anomalies,
         forecast_12mo=forecast_12mo,
-        multi_fuel_forecasts=st.session_state.get("multi_fuel_forecasts"),
+        multi_fuel_forecasts=multi_fuel_forecasts,
         weather_enabled=weather_enabled,
     )
 
@@ -199,8 +213,6 @@ def main() -> None:
         render_fuel_breakdown(
             fuel_frames["electricity"], fuel_frames["gas"], fuel_cross_check_warnings or []
         )
-    with tab_cost:
-        render_cost_intelligence(fuel_frames, weather_enabled)
     with tab_comparisons:
         render_comparisons(
             fuel_frames,
@@ -209,8 +221,10 @@ def main() -> None:
             fuel_merged,
             fuel_energy_results,
             weather_enabled,
-            st.session_state.get("multi_fuel_forecasts"),
+            multi_fuel_forecasts,
         )
+    with tab_cost:
+        render_cost_intelligence(fuel_frames, weather_enabled)
     with tab_carbon:
         render_carbon(fuel_frames, fuel_merged, fuel_energy_results, weather_enabled)
     with tab_stats:

@@ -124,6 +124,27 @@ def test_consultant_preset_question_button_renders_real_answer():
     assert len(at.tabs[1].get("expander")) > 0  # the evidence expander rendered
 
 
+def test_consultant_answer_recomputed_after_fuel_switch():
+    """Regression (audit F2): the Consultant stores the selected *question*, not the computed
+    answer, so switching fuel recomputes the answer from the new context instead of replaying
+    a stale one built for the previous fuel."""
+    at = AppTest.from_file(str(APP_PATH))
+    at.run(timeout=60)
+
+    button = next(b for b in at.tabs[1].get("button") if "compare to average" in b.label.lower())
+    button.click().run(timeout=60)
+    assert at.session_state["consultant_selected_question"] == "How does my usage compare to average?"
+
+    fuel_select = next(sb for sb in at.sidebar.selectbox if sb.label == "Fuel to analyze")
+    fuel_select.set_value("gas").run(timeout=60)
+
+    assert list(at.exception) == []
+    # The question survives the fuel switch and the answer is re-rendered from current context.
+    assert at.session_state["consultant_selected_question"] == "How does my usage compare to average?"
+    markdown_text = " ".join(md.value.lower() for md in at.tabs[1].get("markdown"))
+    assert "uk household" in markdown_text
+
+
 def test_consultant_free_text_question_routes_correctly():
     """Typing a natural-language phrasing of a supported question must route to the right
     handler and render an answer, without needing the exact preset wording."""
