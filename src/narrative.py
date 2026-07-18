@@ -98,7 +98,10 @@ def monthly_narrative(
 
     current_kwh, prior_kwh, pct_change = yoy
     direction = "increased" if pct_change >= 0 else "decreased"
-    sentences.append(f"Electricity consumption {direction} {abs(pct_change):.0f}%.")
+    # Fuel-neutral wording: this narrative renders for whichever fuel the sidebar has
+    # selected (Total/Electricity/Gas), so naming a specific fuel here would be wrong
+    # two times out of three (audit finding F5).
+    sentences.append(f"Consumption {direction} {abs(pct_change):.0f}% versus the same month last year.")
 
     weather_sentence = _weather_sentence(
         month, month - pd.DateOffset(years=1), merged_df, energy_result, current_kwh - prior_kwh

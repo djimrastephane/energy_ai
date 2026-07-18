@@ -5,6 +5,7 @@ from src.preprocessing import (
     build_monthly_series,
     deduplicate,
     detect_missing_months,
+    flag_in_progress_month,
     run_pipeline,
     validate_timestamps,
     validate_units,
@@ -161,3 +162,31 @@ def test_run_pipeline_end_to_end_produces_report():
     assert report.missing_months == [pd.Timestamp("2024-02-01")]
     assert report.n_months == 2
     assert len(clean) == 2
+
+
+def test_flag_in_progress_month_warns_when_latest_month_is_current():
+    # `today` is injected so this test is deterministic regardless of when it runs.
+    today = pd.Timestamp("2026-07-18")
+    df = pd.DataFrame(
+        [
+            _raw_row("2026-06-01", 48.18, 284.09, "a.csv"),
+            _raw_row("2026-07-01", 21.96, 107.87, "a.csv"),  # month-to-date figure
+        ]
+    )
+
+    warnings = flag_in_progress_month(df, today=today)
+
+    assert len(warnings) == 1
+    assert "July 2026" in warnings[0]
+    assert "month-to-date" in warnings[0]
+
+
+def test_flag_in_progress_month_silent_for_completed_months():
+    today = pd.Timestamp("2026-08-05")  # July is now a closed month
+    df = pd.DataFrame([_raw_row("2026-07-01", 28.78, 150.59, "a.csv")])
+
+    assert flag_in_progress_month(df, today=today) == []
+
+
+def test_flag_in_progress_month_empty_frame():
+    assert flag_in_progress_month(pd.DataFrame(), today=pd.Timestamp("2026-07-18")) == []
