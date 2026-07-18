@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Household Energy Review — {{ period }}</title>
+<style>
+  :root { color-scheme: light; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1c1c1c; background: #fff; margin: 0;
+    line-height: 1.55;
+  }
+  .page { max-width: 880px; margin: 0 auto; padding: 2.5rem 2rem; }
+  header.cover { border-bottom: 3px solid #2a78d6; padding-bottom: 1.2rem; margin-bottom: 2rem; }
+  header.cover h1 { font-size: 1.9rem; margin: 0 0 0.3rem; }
+  header.cover .meta { color: #555; font-size: 0.95rem; }
+  section { margin-bottom: 2.4rem; }
+  h2 { font-size: 1.35rem; border-bottom: 1px solid #d9d9d4; padding-bottom: 0.3rem; margin: 0 0 0.9rem; }
+  h3 { font-size: 1.05rem; margin: 1.1rem 0 0.4rem; }
+  .kpis { display: flex; gap: 1.5rem; flex-wrap: wrap; margin: 0.8rem 0; }
+  .kpi { background: #f5f6f8; border-radius: 8px; padding: 0.7rem 1.1rem; min-width: 160px; }
+  .kpi .label { font-size: 0.8rem; color: #555; }
+  .kpi .value { font-size: 1.25rem; font-weight: 600; }
+  .confidence { display: inline-block; font-size: 0.8rem; border-radius: 10px; padding: 0.05rem 0.6rem; margin-left: 0.4rem; vertical-align: middle; }
+  .confidence.High { background: #e2f2e2; color: #1a6b1a; }
+  .confidence.Medium { background: #fdf3d7; color: #8a6d0b; }
+  .confidence.Low { background: #fbe4e4; color: #a12727; }
+  .evidence { font-size: 0.88rem; color: #444; margin: 0.3rem 0 0 0; padding-left: 1.2rem; }
+  .note { background: #f2f6fc; border-left: 4px solid #2a78d6; padding: 0.6rem 0.9rem; font-size: 0.92rem; margin: 0.8rem 0; }
+  .warning { background: #fdf3d7; border-left: 4px solid #d1a018; padding: 0.6rem 0.9rem; font-size: 0.92rem; margin: 0.8rem 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.92rem; margin: 0.7rem 0; }
+  th, td { border: 1px solid #d9d9d4; padding: 0.4rem 0.6rem; text-align: left; }
+  th { background: #f5f6f8; }
+  .chart { margin: 1rem 0; }
+  footer { border-top: 1px solid #d9d9d4; margin-top: 2rem; padding-top: 0.8rem; color: #666; font-size: 0.85rem; }
+  .screen-only { color: #666; font-size: 0.88rem; }
+  @media print {
+    .page { max-width: none; padding: 0; }
+    section { break-inside: avoid-page; }
+    h2 { break-after: avoid-page; }
+    .screen-only { display: none; }
+    body { font-size: 11pt; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="cover">
+  <h1>Household Energy Review — {{ period }}</h1>
+  <div class="meta">
+    Generated {{ generated_date }} · {{ n_months }} months of monthly billing data ({{ coverage }})
+    · Fuels: {{ fuels_present }}
+  </div>
+  <p class="screen-only">This report is self-contained: charts are interactive in a browser, and
+  the browser's Print&nbsp;&rarr;&nbsp;"Save as PDF" produces a print-quality PDF.</p>
+</header>
+
+<section id="executive-summary">
+  <h2>Executive summary</h2>
+  <div class="kpis">
+    {% for kpi in headline_kpis %}
+    <div class="kpi"><div class="label">{{ kpi.label }}</div><div class="value">{{ kpi.value }}</div></div>
+    {% endfor %}
+  </div>
+  <p>{{ executive_summary }}</p>
+  {% if largest_cost_driver %}<p><strong>Largest cost driver:</strong> {{ largest_cost_driver }}</p>{% endif %}
+  {% for w in data_warnings %}<div class="warning">{{ w }}</div>{% endfor %}
+</section>
+
+<section id="key-findings">
+  <h2>Key findings</h2>
+  {% for f in findings %}
+  <h3>{{ f.title }}<span class="confidence {{ f.confidence }}">{{ f.confidence }} confidence</span></h3>
+  <p>{{ f.narrative }}</p>
+  <ul class="evidence">{% for e in f.evidence %}<li>{{ e }}</li>{% endfor %}</ul>
+  {% else %}
+  <p>No findings met the evidence threshold.</p>
+  {% endfor %}
+</section>
+
+<section id="fuel-mix">
+  <h2>Fuel mix</h2>
+  {% if fuel_mix_narrative %}
+  <p>{{ fuel_mix_narrative }}</p>
+  {{ fuel_mix_chart }}
+  {{ fuel_annual_chart }}
+  {% else %}
+  <div class="note">Fuel-level analysis needs both Electricity and Gas exports; only combined
+  totals were available for this report.</div>
+  {% endif %}
+</section>
+
+<section id="weather">
+  <h2>Weather analysis</h2>
+  {% if weather_narrative %}
+  <p>{{ weather_narrative }}</p>
+  {% if weather_vs_behavioural %}<p>{{ weather_vs_behavioural }}</p>{% endif %}
+  {{ weather_chart }}
+  {% else %}
+  <div class="note">Weather adjustment was not enabled when this report was generated, so
+  weather-driven and behavioural changes can't be separated here. Enable "Weather adjustment"
+  in the app sidebar and regenerate for the full analysis.</div>
+  {% endif %}
+</section>
+
+<section id="consumption">
+  <h2>Consumption history</h2>
+  {{ monthly_chart }}
+  {{ yoy_chart }}
+</section>
+
+<section id="forecast">
+  <h2>Forecast</h2>
+  {% if forecast_narrative %}
+  <p>{{ forecast_narrative }}</p>
+  {{ forecast_chart }}
+  {% else %}
+  <div class="note">Not enough history for a cross-validated forecast.</div>
+  {% endif %}
+</section>
+
+<section id="recommendations">
+  <h2>Recommendations</h2>
+  {% for r in recommendations %}
+  <h3>{{ r.title }}<span class="confidence {{ r.confidence }}">{{ r.confidence }} confidence</span></h3>
+  <p>{{ r.action }}</p>
+  <p><em>Why:</em> {{ r.rationale }}</p>
+  <ul class="evidence">{% for e in r.evidence %}<li>{{ e }}</li>{% endfor %}</ul>
+  {% else %}
+  <p>{{ no_recommendations_message }}</p>
+  {% endfor %}
+</section>
+
+<section id="carbon">
+  <h2>Carbon</h2>
+  {% if carbon_rows %}
+  <table>
+    <tr><th>Year</th><th>Electricity (kg CO₂e)</th><th>Gas (kg CO₂e)</th><th>Combined (tonnes CO₂e)</th></tr>
+    {% for row in carbon_rows %}
+    <tr><td>{{ row.year }}</td><td>{{ row.electricity }}</td><td>{{ row.gas }}</td><td>{{ row.combined_tonnes }}</td></tr>
+    {% endfor %}
+  </table>
+  <p class="note">{{ carbon_factors_note }}</p>
+  {% else %}
+  <div class="note">Carbon estimates need both Electricity and Gas exports with at least one
+  complete calendar year -- not available for this report.</div>
+  {% endif %}
+</section>
+
+<section id="benchmark">
+  <h2>Benchmark</h2>
+  {% if benchmark_rows %}
+  <table>
+    <tr><th>Fuel</th><th>Your annualized usage</th><th>Reference</th><th>Verdict</th><th>Source</th></tr>
+    {% for b in benchmark_rows %}
+    <tr><td>{{ b.fuel }}</td><td>{{ b.annual_kwh }}</td><td>{{ b.reference_kwh }}</td><td>{{ b.band }}</td><td>{{ b.source }}</td></tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <div class="note">Benchmarking needs fuel-level data -- not available for this report.</div>
+  {% endif %}
+</section>
+
+<section id="methodology">
+  <h2>Methodology</h2>
+  <p>Every number in this report is computed deterministically from the monthly billing exports
+  (and, where enabled, historical weather); nothing is generated by a language model, and no
+  conclusion appears without traceable evidence.</p>
+  <ul>
+    <li><strong>Seasonality and trend:</strong> STL decomposition of the monthly series, with
+    seasonal/trend strength measured by the standard Hyndman&ndash;Athanasopoulos statistics.</li>
+    <li><strong>Weather adjustment:</strong> a degree-day "energy signature" regression
+    (average daily kWh vs. heating/cooling degree days, bases 15.5&nbsp;&deg;C/22&nbsp;&deg;C), the standard
+    utility-analyst method for monthly billing data. Weather comes from the free Open-Meteo
+    archive for the configured location.</li>
+    <li><strong>Usage shifts:</strong> PELT and CUSUM change-point detection on the
+    deseasonalized series, so regular winter/summer swings aren't mistaken for behavioural change.</li>
+    <li><strong>Forecast:</strong> eight models (naive, seasonal-naive, linear trend,
+    Holt-Winters, SARIMA, Prophet, XGBoost, LightGBM) compared by 1-step-ahead walk-forward
+    cross-validation; the lowest-error model is selected, and uncertainty bands come from
+    resampling that model's own validation errors (floored at zero).</li>
+    <li><strong>Unusual months:</strong> three independent detectors (rolling z-score with a
+    shifted baseline, STL-residual generalized ESD, Isolation Forest), cross-referenced --
+    months flagged by two or more methods are treated as meaningfully more reliable.</li>
+    <li><strong>Cost:</strong> effective &pound;/kWh derived directly from the billing exports.
+    Standing charges are not present in the source data and are therefore never estimated --
+    all &pound; figures are energy consumption cost only.</li>
+    <li><strong>Carbon and benchmarks:</strong> static, cited constants (UK Government
+    DESNZ/DEFRA greenhouse-gas conversion factors; Ofgem Typical Domestic Consumption Values)
+    -- documented in the application's configuration, not live data.</li>
+  </ul>
+</section>
+
+<section id="limitations">
+  <h2>Limitations and data quality</h2>
+  <ul>
+    {% for item in limitations %}<li>{{ item }}</li>{% endfor %}
+  </ul>
+  <h3>Monitoring priorities</h3>
+  <ul>
+    {% for item in monitoring_priorities %}<li>{{ item }}</li>{% endfor %}
+  </ul>
+  <h3>Confidence summary</h3>
+  <table>
+    <tr><th>Area</th><th>Level</th><th>Reason</th></tr>
+    {% for c in confidence_rows %}
+    <tr><td>{{ c.area }}</td><td>{{ c.level }}</td><td>{{ c.reason }}</td></tr>
+    {% endfor %}
+  </table>
+</section>
+
+<footer>
+  Generated by the AI Home Energy Intelligence Platform on {{ generated_date }} ·
+  household-specific results, not universal claims · all £ figures exclude standing charges.
+</footer>
+
+</div>
+</body>
+</html>

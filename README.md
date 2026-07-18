@@ -90,7 +90,9 @@ energy_ai/
 │   ├── charts.py          # reusable Plotly chart builders (Phase 1-2)
 │   ├── charts_phase3.py   # forecast fan chart, model comparison, anomaly scatter
 │   ├── charts_fuel.py     # electricity-vs-gas comparison charts
-│   └── charts_comparisons.py # annual comparison chart across fuels
+│   ├── charts_comparisons.py # annual comparison chart across fuels
+│   ├── report_html.py     # Household Energy Review: self-contained HTML report builder
+│   └── report_template.html # Jinja2 template for the report (screen + print CSS)
 ├── data/
 │   ├── raw/                # source CSVs (OVO exports)
 │   └── processed/           # weather cache (disk-cached Open-Meteo responses)
@@ -412,3 +414,20 @@ recommendation like "Focus on gas" had also fired. Fixed to prefer any
 actionable recommendation over that one.
 
 Coverage: 97% on `src/`, 291 tests total (up from 258).
+
+## Household Energy Review (downloadable report)
+
+The sidebar's **Report** section generates a self-contained HTML
+"Household Energy Review" -- executive summary, key findings, fuel mix,
+weather analysis, consumption history, forecast, recommendations, carbon,
+benchmark, methodology, and limitations -- rendered entirely from analysis
+the app has already computed (`app/report_html.py`, no new statistics).
+Charts are interactive in a browser; the built-in print stylesheet means
+the browser's Print -> "Save as PDF" produces a print-quality PDF. The file
+embeds plotly.js inline (~5 MB) so it works fully offline, and Jinja2
+autoescaping is on. Generation is a deliberate two-step (Generate ->
+Download) with a context fingerprint, so a report generated for one
+fuel/weather/data state is discarded rather than served stale after the
+context changes. Zero new dependencies: jinja2 ships with Streamlit.
+In-app PDF (reportlab + kaleido) and an Excel appendix were considered and
+consciously deferred.

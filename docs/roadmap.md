@@ -250,12 +250,42 @@ new computation.
   it's the sole recommendation available.
 - Coverage: 97% on `src/`, 291 tests total (up from 258).
 
+## Household Energy Review report -- done
+
+The sidebar's long-disabled "Download report" placeholder is now a real
+feature: a **self-contained HTML "Household Energy Review"** (executive
+summary, key findings, fuel mix, weather analysis, consumption history,
+forecast, recommendations, carbon, benchmark, methodology, limitations &
+data quality), generated on demand from the sidebar.
+
+- `app/report_html.py` + `app/report_template.html`: pure rendering over
+  the already-computed `AnalystReport`/fuel frames/forecast -- no new
+  statistics, no Streamlit imports in the builder (unit-testable directly).
+  Jinja2 autoescaping is on (escaping regression-tested); only the
+  app-generated Plotly fragments are marked safe. Charts stay interactive
+  in a browser; print CSS means Print -> "Save as PDF" yields the polished
+  PDF. plotly.js is inlined once (~4.9 MB file, builds in 0.17 s on the
+  real data).
+- Two-step Generate -> Download flow with a context fingerprint (fuel,
+  weather, data extent): a stored report is discarded rather than served
+  stale after fuel/weather/data changes -- the audit F2/F7 session-state
+  lesson applied preemptively, regression-tested via AppTest.
+- Every honesty rule carries into the document: "excl. standing charges"
+  on all £ figures, the in-progress-month warning, verbatim
+  no-recommendations fallback, confidence + reason on every finding, and
+  a footer noting results are household-specific.
+- Format decision (recorded): self-contained HTML chosen over in-app PDF
+  (reportlab + kaleido would add two heavy dependencies for static charts)
+  and over an Excel appendix (declined for now) -- zero new dependencies,
+  since jinja2 already ships with Streamlit.
+- Coverage: 97% on `src/`, 306 tests total (up from 295).
+
 ## Phase 5 -- explainability
 
 - Feature importance / SHAP for the regression and ML forecast models.
 
-## Phase 6 -- reporting and docs
+## Phase 6 -- remaining reporting and docs
 
-- PDF / HTML / Excel report generation (management summary + technical
-  report).
+- ~~HTML report generation~~ done (see "Household Energy Review report").
+  In-app PDF and Excel export consciously deferred.
 - Architecture diagram, user guide, API documentation, final polish.

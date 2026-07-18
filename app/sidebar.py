@@ -129,11 +129,6 @@ def render_sidebar() -> tuple[
         "model is useful to inspect how it individually performs."
     )
 
-    st.sidebar.divider()
-    st.sidebar.subheader("Coming in later phases")
-    st.sidebar.button("Download report (PDF / HTML / Excel)", disabled=True)
-    st.sidebar.caption("Reporting -- Phase 6")
-
     return (
         clean,
         report,
