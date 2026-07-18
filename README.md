@@ -1,5 +1,6 @@
 # AI Home Energy Intelligence Platform
 
+[![Tests](https://github.com/djimrastephane/energy_ai/actions/workflows/tests.yml/badge.svg)](https://github.com/djimrastephane/energy_ai/actions/workflows/tests.yml)
 ![coverage](https://img.shields.io/badge/coverage-96%25-brightgreen)
 
 A local, no-cloud analytics platform for residential energy consumption,
