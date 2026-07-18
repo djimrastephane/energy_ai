@@ -14,8 +14,10 @@ from dataclasses import dataclass
 import pandas as pd
 
 from src.anomalies import Anomaly
+from src.comparisons import WeatherSensitivityShares
 from src.confidence import Confidence, ConfidenceRating
 from src.energy_signature import EnergySignatureResult
+from src.fuel import FuelShares
 from src.investigation import InvestigationChecklist
 from src.utils import format_gbp, get_logger
 
@@ -165,6 +167,70 @@ def recommend_investigate_anomaly(
     )
 
 
+_DOMINANCE_THRESHOLD_PCT = 60.0
+
+
+def recommend_fuel_focus(
+    fuel_shares: FuelShares | None,
+    weather_shares: WeatherSensitivityShares | None,
+) -> Recommendation | None:
+    """Gate: one fuel clearly dominates both consumption/cost share (``fuel_shares``, from
+    ``src.fuel.compute_fuel_shares``) and weather-sensitivity share (``weather_shares``, from
+    ``src.comparisons.compute_weather_sensitivity_shares``) -- both already-computed elsewhere,
+    reused here rather than re-derived. Fires only when both agree on the same dominant fuel
+    and each share exceeds a 60% "clearly dominant" threshold; otherwise returns None rather
+    than picking a fuel to focus on when the evidence doesn't clearly point at one.
+    """
+    if fuel_shares is None or weather_shares is None:
+        return None
+
+    consumption_dominant = (
+        "gas" if fuel_shares.gas_share_kwh_pct >= fuel_shares.electricity_share_kwh_pct else "electricity"
+    )
+    if consumption_dominant != weather_shares.dominant_fuel:
+        return None
+
+    consumption_share = (
+        fuel_shares.gas_share_kwh_pct if consumption_dominant == "gas" else fuel_shares.electricity_share_kwh_pct
+    )
+    weather_share = (
+        weather_shares.gas_share_pct if consumption_dominant == "gas" else weather_shares.electricity_share_pct
+    )
+    if consumption_share < _DOMINANCE_THRESHOLD_PCT or weather_share < _DOMINANCE_THRESHOLD_PCT:
+        return None
+
+    other_fuel = "electricity" if consumption_dominant == "gas" else "gas"
+    both_significant = weather_shares.gas_significant and weather_shares.electricity_significant
+    confidence: Confidence = "High" if both_significant else "Medium"
+    confidence_reason = (
+        "Both fuels show a statistically significant heating response, so the weather-sensitivity "
+        "split is well-supported."
+        if both_significant
+        else "The weather-sensitivity split rests on only one fuel's statistically significant heating response."
+    )
+
+    return Recommendation(
+        title=f"Focus on {consumption_dominant}",
+        action=(
+            f"{consumption_dominant.capitalize()} accounts for {consumption_share:.0f}% of annual energy "
+            f"and drives {weather_share:.0f}% of heating sensitivity; reducing {consumption_dominant} "
+            f"demand is likely to produce larger savings than reducing {other_fuel} use."
+        ),
+        estimated_saving_gbp=None,
+        evidence=[
+            f"Consumption share: {consumption_dominant} {consumption_share:.0f}%",
+            f"Heating-sensitivity share: {consumption_dominant} {weather_share:.0f}%",
+        ],
+        confidence=confidence,
+        confidence_reason=confidence_reason,
+        rationale=(
+            f"{consumption_dominant.capitalize()} dominates both total energy/cost share and the "
+            "weather-driven (heating) portion of consumption, so it's the fuel where usage reduction "
+            "would have the largest impact on the bill."
+        ),
+    )
+
+
 def generate_recommendations(
     clean_df: pd.DataFrame,
     merged_df: pd.DataFrame | None,
@@ -174,11 +240,14 @@ def generate_recommendations(
     top_anomaly: Anomaly | None = None,
     top_anomaly_checklist: InvestigationChecklist | None = None,
     top_anomaly_rating: ConfidenceRating | None = None,
+    fuel_shares: FuelShares | None = None,
+    weather_shares: WeatherSensitivityShares | None = None,
 ) -> list[Recommendation]:
     """Run every recommendation rule and return whichever ones actually fired."""
     candidates = [
         recommend_heating_review(clean_df, merged_df, energy_result),
         recommend_more_data(forecast_rating, n_months),
+        recommend_fuel_focus(fuel_shares, weather_shares),
     ]
     if top_anomaly is not None and top_anomaly_checklist is not None and top_anomaly_rating is not None:
         candidates.append(recommend_investigate_anomaly(top_anomaly, top_anomaly_checklist, top_anomaly_rating))

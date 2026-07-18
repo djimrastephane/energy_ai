@@ -7,8 +7,9 @@ from src.anomalies import detect_anomalies
 from src.changepoints import detect_changepoints
 from src.confidence import ConfidenceRating
 from src.decomposition import stl_decompose
+from src.energy_signature import fit_energy_signature
 from src.forecast_evaluation import generate_forecast
-from src.ingestion import discover_csv_files, load_all
+from src.ingestion import FUEL_FILE_PATTERNS, discover_csv_files, load_all
 from src.preprocessing import PreprocessingReport, run_pipeline
 from src.report import (
     NO_SAVINGS_MESSAGE,
@@ -16,6 +17,11 @@ from src.report import (
     _monitoring_priorities,
     _overall_assessment,
     build_analyst_report,
+)
+from src.weather import (
+    compute_monthly_degree_days,
+    fetch_daily_temperature,
+    merge_weather_with_consumption,
 )
 
 
@@ -127,3 +133,94 @@ def test_build_analyst_report_end_to_end_on_real_data():
         assert finding.evidence
     for rec in analyst_report.recommendations:
         assert rec.evidence
+
+
+def test_build_analyst_report_household_sections_on_real_data():
+    """Real-data end-to-end check for Task 10/11's household-level sections: fuel mix,
+    weather-sensitivity attribution, largest cost driver, and per-fuel findings -- all built
+    from the three real fuel exports, using the existing (unmodified) analysis functions."""
+    warnings.filterwarnings("ignore")
+    w = SETTINGS.weather
+
+    fuel_clean, fuel_stl, fuel_anomalies, fuel_energy = {}, {}, {}, {}
+    for fuel_key, pattern in FUEL_FILE_PATTERNS.items():
+        files = discover_csv_files(SETTINGS.raw_data_dir, pattern=pattern)
+        clean, _ = run_pipeline(load_all(files))
+        fuel_clean[fuel_key] = clean
+        stl_result = stl_decompose(clean)
+        fuel_stl[fuel_key] = stl_result
+        fuel_anomalies[fuel_key] = detect_anomalies(clean, stl_result)
+
+        start = clean["month_start"].min()
+        end = clean["month_start"].max() + pd.offsets.MonthEnd(1)
+        daily = fetch_daily_temperature(w.latitude, w.longitude, start, end, w.timezone, SETTINGS.weather_cache_dir)
+        monthly_dd = compute_monthly_degree_days(daily, w.base_heat_c, w.base_cool_c)
+        merged = merge_weather_with_consumption(clean, monthly_dd)
+        fuel_energy[fuel_key] = fit_energy_signature(merged)
+
+    clean = fuel_clean["total"]
+    report = _report()
+    stl_result = fuel_stl["total"]
+    changepoints = detect_changepoints(stl_result.deseasonalized)
+
+    analyst_report = build_analyst_report(
+        clean=clean,
+        report=report,
+        stl_result=stl_result,
+        merged_df=None,
+        energy_result=fuel_energy["total"],
+        changepoints=changepoints,
+        anomalies=fuel_anomalies["total"],
+        forecast_result=None,
+        fuel="total",
+        fuel_clean_dfs=fuel_clean,
+        fuel_stl_results=fuel_stl,
+        fuel_energy_results=fuel_energy,
+        fuel_anomalies=fuel_anomalies,
+    )
+
+    assert analyst_report.fuel_mix_finding is not None
+    assert "Gas accounts for 65%" in analyst_report.fuel_mix_finding.narrative
+
+    assert analyst_report.weather_sensitivity_finding is not None
+    assert "gas accounts for 89%" in analyst_report.weather_sensitivity_finding.narrative
+    assert "electricity accounts for 11%" in analyst_report.weather_sensitivity_finding.narrative
+
+    assert analyst_report.largest_cost_driver is not None
+    assert "Electricity" in analyst_report.largest_cost_driver  # gas is cheaper per kWh, so costs less overall
+
+    assert set(analyst_report.per_fuel_findings) == {"electricity", "gas"}
+    assert len(analyst_report.per_fuel_findings["electricity"]) > 0
+    assert len(analyst_report.per_fuel_findings["gas"]) > 0
+
+    # The fuel-focus recommendation should fire: gas dominates both consumption and weather
+    # sensitivity well past the 60% threshold.
+    fuel_focus = next((r for r in analyst_report.recommendations if r.title == "Focus on gas"), None)
+    assert fuel_focus is not None
+    assert fuel_focus.confidence == "High"
+
+
+def test_build_analyst_report_without_fuel_dicts_leaves_household_sections_none():
+    """Omitting the fuel_* dicts (the pre-existing call signature) must produce the same
+    single-fuel report as before -- these Task 10/11 additions are opt-in, not required."""
+    warnings.filterwarnings("ignore")
+    files = discover_csv_files(SETTINGS.raw_data_dir)
+    clean, report = run_pipeline(load_all(files))
+    stl_result = stl_decompose(clean)
+
+    analyst_report = build_analyst_report(
+        clean=clean,
+        report=report,
+        stl_result=stl_result,
+        merged_df=None,
+        energy_result=None,
+        changepoints=[],
+        anomalies=[],
+        forecast_result=None,
+    )
+
+    assert analyst_report.fuel_mix_finding is None
+    assert analyst_report.weather_sensitivity_finding is None
+    assert analyst_report.largest_cost_driver is None
+    assert analyst_report.weather_vs_behavioural_summary is None
+    assert analyst_report.per_fuel_findings == {}

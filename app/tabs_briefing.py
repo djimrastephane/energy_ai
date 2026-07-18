@@ -103,6 +103,21 @@ def render_executive_briefing(
     else:
         st.info("Not enough history for a cross-validated forecast yet.")
 
+    if (
+        analyst_report.fuel_mix_finding
+        or analyst_report.largest_cost_driver
+        or analyst_report.weather_vs_behavioural_summary
+    ):
+        st.divider()
+        st.subheader("Household energy profile")
+        if analyst_report.largest_cost_driver:
+            st.write(f"**Largest cost driver:** {analyst_report.largest_cost_driver}")
+        if analyst_report.fuel_mix_finding:
+            st.write(f"**Fuel mix:** {analyst_report.fuel_mix_finding.narrative}")
+        if analyst_report.weather_vs_behavioural_summary:
+            st.write(f"**Weather vs. behavioural impact:** {analyst_report.weather_vs_behavioural_summary}")
+        st.caption("See the Comparisons tab for the full electricity-vs-gas breakdown.")
+
     st.divider()
     st.subheader("Confidence")
     c1, c2, c3, c4 = st.columns(4)

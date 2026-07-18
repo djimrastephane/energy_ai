@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
-from charts_fuel import fuel_comparison_bar, fuel_share_area
+from charts_fuel import fuel_comparison_bar, fuel_mix_annual_stacked_bar, fuel_share_area
 
 from src.fuel import combine_fuel_frames, finding_fuel_mix
 
@@ -34,6 +34,14 @@ def render_fuel_breakdown(
         st.info("Electricity and Gas exports don't share any overlapping months.")
         return
 
+    total_elec_kwh = float(combined["electricity_kwh"].sum())
+    total_gas_kwh = float(combined["gas_kwh"].sum())
+    total_kwh = total_elec_kwh + total_gas_kwh
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Electricity share", f"{total_elec_kwh / total_kwh * 100:.0f}%" if total_kwh > 0 else "n/a")
+    c2.metric("Gas share", f"{total_gas_kwh / total_kwh * 100:.0f}%" if total_kwh > 0 else "n/a")
+    c3.metric("Combined energy", f"{total_kwh:,.0f} kWh")
+
     if cross_check_warnings:
         st.warning(
             f"{len(cross_check_warnings)} month(s) where Electricity + Gas doesn't match Total -- "
@@ -44,6 +52,7 @@ def render_fuel_breakdown(
 
     st.plotly_chart(fuel_comparison_bar(combined), width="stretch")
     st.plotly_chart(fuel_share_area(combined), width="stretch")
+    st.plotly_chart(fuel_mix_annual_stacked_bar(combined), width="stretch")
 
     st.divider()
     st.subheader("Fuel mix")

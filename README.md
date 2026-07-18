@@ -1,14 +1,16 @@
 # AI Home Energy Intelligence Platform
 
 [![Tests](https://github.com/djimrastephane/energy_ai/actions/workflows/tests.yml/badge.svg)](https://github.com/djimrastephane/energy_ai/actions/workflows/tests.yml)
-![coverage](https://img.shields.io/badge/coverage-96%25-brightgreen)
+![coverage](https://img.shields.io/badge/coverage-97%25-brightgreen)
 
 A local, no-cloud analytics platform for residential energy consumption,
 built on OVO Energy "Total Use" CSV exports (and, when available,
 fuel-level "Electricity Use"/"Gas Use" exports -- see
-[Fuel-level analysis](#fuel-level-analysis-electricity-vs-gas) below).
+[Fuel-level analysis](#fuel-level-analysis-electricity-vs-gas) and
+[Phase 4: household energy intelligence](#phase-4-household-energy-intelligence)
+below).
 
-## Status: Phase 3 of 6, plus a decision-support layer
+## Status: Phase 4 of 6, plus a decision-support layer
 
 This is an intentionally broad, phased build. **Phase 1** covers data
 ingestion, validation, descriptive statistics, and core KPIs. **Phase 2**
@@ -17,15 +19,17 @@ signature" regression (via the free Open-Meteo API), and change-point
 detection. **Phase 3** adds an 8-model forecasting suite (compared by
 walk-forward cross-validation, auto-selected, with P10/P50/P90 bands) and
 anomaly detection (rolling z-score, STL-residual ESD, Isolation Forest,
-cross-referenced). On top of that, a **decision-support layer** turns all
-of the above from a statistics dashboard into an evidence-based briefing:
-plain-English findings, evidence-gated recommendations (never fabricated,
-never solar/EV/battery without the data to support it), an investigation
-checklist for anomalies/change points, and a deterministic "AI Analyst"
-report -- no LLM, no free-form generation, every conclusion traceable to a
-specific number computed elsewhere in the app. See `docs/roadmap.md` for
-what Phases 4-6 still add, and for the real bugs the manual real-data
-verification step caught along the way.
+cross-referenced). A **decision-support layer** turns all of the above from
+a statistics dashboard into an evidence-based briefing: plain-English
+findings, evidence-gated recommendations (never fabricated, never solar/EV/
+battery without the data to support it), an investigation checklist for
+anomalies/change points, and a deterministic "AI Analyst" report -- no LLM,
+no free-form generation, every conclusion traceable to a specific number
+computed elsewhere in the app. **Phase 4** (see below) compares Electricity/
+Gas/Total directly, adds cost intelligence, carbon estimates, and UK/
+Scotland benchmarking. See `docs/roadmap.md` for what Phases 5-6 still add,
+and for the real bugs the manual real-data verification step caught along
+the way.
 
 **A note on the data:** the OVO exports in `data/raw/` are *monthly* billing
 summaries (`Month, Cost (£), Consumption (kWh)`), not daily or half-hourly
@@ -68,21 +72,27 @@ only" only appear once matching exports exist.
 ```
 energy_ai/
 ├── app/
-│   ├── streamlit_app.py   # sidebar, data loading, orchestration
+│   ├── streamlit_app.py   # top-level orchestration, kept under ~300 lines
+│   ├── sidebar.py         # sidebar controls + fuel-aware data loading
+│   ├── multi_fuel.py      # eagerly computes STL/anomalies/weather for all 3 fuels
 │   ├── tabs_briefing.py   # Executive Summary: evidence-based briefing, not a KPI dump
 │   ├── tabs_analyst.py    # AI Analyst: the full deterministic report
 │   ├── tabs_core.py       # Consumption Analysis, Statistical Analysis, Data Quality
 │   ├── tabs_fuel.py       # Fuel Breakdown: electricity vs. gas comparison
+│   ├── tabs_comparisons.py # Comparisons: Electricity vs. Gas vs. Total, side by side
+│   ├── tabs_cost.py       # Cost Intelligence: billing breakdown, forecast bills, benchmarking
+│   ├── tabs_carbon.py     # Carbon: estimated CO2e emissions
 │   ├── tabs_phase2.py     # Seasonality, Weather Adjustment, Change Points
 │   ├── tabs_phase3.py     # Forecasting, Anomaly Detection
 │   ├── charts.py          # reusable Plotly chart builders (Phase 1-2)
 │   ├── charts_phase3.py   # forecast fan chart, model comparison, anomaly scatter
-│   └── charts_fuel.py     # electricity-vs-gas comparison charts
+│   ├── charts_fuel.py     # electricity-vs-gas comparison charts
+│   └── charts_comparisons.py # annual comparison chart across fuels
 ├── data/
 │   ├── raw/                # source CSVs (OVO exports)
 │   └── processed/           # weather cache (disk-cached Open-Meteo responses)
 ├── src/
-│   ├── ingestion.py         # CSV parsing/loading, schema validation
+│   ├── ingestion.py         # CSV parsing/loading, schema validation, EnergyType
 │   ├── preprocessing.py     # dedup, validation, missing-month detection, enrichment
 │   ├── statistics.py        # descriptive stats (mean/median/CV/skew/CI/bootstrap)
 │   ├── kpis.py               # period-over-period KPI comparisons
@@ -97,6 +107,11 @@ energy_ai/
 │   ├── esd.py                 # generalized ESD (Rosner) outlier test
 │   ├── anomalies.py           # rolling z-score + STL-ESD + Isolation Forest, cross-referenced
 │   ├── fuel.py                 # electricity/gas cross-check, combining, fuel-mix finding
+│   ├── comparisons.py          # annual/monthly/seasonality/weather-sensitivity comparisons
+│   ├── cross_fuel_anomalies.py # cross-references per-fuel anomalies to attribute a cause
+│   ├── cost_engine.py          # per-fuel/combined cost breakdown, forecast bill by fuel
+│   ├── benchmarking.py         # Below/Average/Above-average bands vs. UK/Scotland
+│   ├── carbon.py                # CO2e emissions estimates, static cited factors
 │   ├── confidence.py          # shared High/Medium/Low taxonomy, used everywhere below
 │   ├── findings.py            # translates stats into plain-English findings + evidence
 │   ├── investigation.py       # "possible causes" checklist for anomalies/change points
@@ -105,7 +120,7 @@ energy_ai/
 │   ├── report.py              # AnalystReport: single source of truth for both report tabs
 │   └── utils.py               # logging, formatting, shared helpers
 ├── tests/                   # pytest suite (unit + integration + UI smoke test, network-free)
-├── config.py                # paths, validation thresholds, weather location -- no hard-coded paths
+├── config.py                # paths, thresholds, weather/benchmark/carbon config -- no hard-coded paths
 └── requirements.txt
 ```
 
@@ -251,3 +266,98 @@ Weather Adjustment tab could only say "consistent with *some* electric
 heating" -- switching the Fuel selector to "Electricity only" now shows
 directly how small that contribution actually is, rather than leaving it
 to be inferred from a combined fit.
+
+## Phase 4: household energy intelligence
+
+Requested directly by the user: turn the app from "electricity analytics"
+into genuine household energy intelligence -- explain *why* energy changed,
+*which fuel* caused it, add cost/carbon estimation, and benchmark against
+published averages, reusing the existing statistical engine rather than
+duplicating it. No `EnergyStream` wrapper class was built: the `fuel: str`
+/ sidebar-selector pattern from the fuel-level-analysis phase already made
+every earlier module generic over Electricity/Gas/Total, so this phase only
+adds what's genuinely new -- three new tabs (**Comparisons**, **Cost
+Intelligence**, **Carbon**) and household-level sections on the Executive
+Summary and AI Analyst tabs.
+
+**`src/comparisons.py` + `src/cross_fuel_anomalies.py`** (Comparisons tab):
+annual/monthly/seasonality tables across fuels; `compare_weather_sensitivity`
+formalizes the fuel-level-analysis payoff check into a reusable `Finding`
+(**gas explains 89%** of the two fuels' combined heating-driven response,
+electricity 11%); `cross_fuel_anomaly_insights` cross-references each
+fuel's independently-detected anomalies to say *which* fuel is responsible
+for a flagged month:
+
+| Pattern | Interpretation |
+|---|---|
+| Electricity flagged, gas unchanged | Likely appliance/occupancy change |
+| Gas flagged, electricity unchanged | Likely a heating event |
+| Both flagged, same direction, within weather-adjusted expectation | Likely weather-driven |
+| Both flagged, same direction, still exceeds weather-adjusted expectation | Partially unexplained -- worth investigating |
+| Both flagged, **opposite** directions | Not a shared driver -- attributed to the stronger signal, conflict stated explicitly |
+
+A real bug this design caught: December 2024 (the known 738 kWh outlier
+from Phase 3) has electricity *dropping* 149 kWh (1 method, weather-adjusted
+z≈-0.01 -- essentially exactly at its predicted level) while gas *spiked*
+589 kWh (all 3 methods, weather-adjusted z=+1.96 -- still elevated even
+after accounting for that month's cold weather). An early version of the
+classifier only checked "were both fuels flagged," which called this "both
+moved together" -- simply false when the directions disagree. Fixed to
+detect direction conflicts explicitly; the real classification is now
+*"the gas signal is stronger (3 methods vs 1), so this looks more like a
+gas-specific event than something affecting the whole household"* -- High
+confidence, with the conflicting electricity signal stated as evidence, not
+hidden.
+
+**`src/cost_engine.py`** (Cost Intelligence tab): per-fuel and combined
+billing breakdown, and `forecast_bill_by_fuel` (converts each fuel's
+already-computed forecast to £, opt-in via a button since it triples the
+walk-forward-CV cost of the single-fuel Forecasting tab). **Standing
+charges are deliberately omitted** -- the OVO exports have no standing-
+charge or tariff-rate column at all (only `Month, Cost (£), Consumption
+(kWh)`), so fabricating a fixed/variable split would violate this
+platform's "never invent a number" rule. On the real data, cost reconciles
+exactly: Electricity (£1,200.13) + Gas (£535.70) = Total (£1,735.83), to
+the penny.
+
+**`src/benchmarking.py`** (also in Cost Intelligence): Below/Average/
+Above-average bands (±15% tolerance, deliberately never a single "Energy
+Score") against Ofgem's Typical Domestic Consumption Values (medium usage,
+2,500 kWh electricity / 9,500 kWh gas per year, 2026) and Scotland-specific
+average electricity consumption (3,429 kWh/year, DESNZ/ONS sub-national
+statistics). No Scotland-specific *gas* consumption benchmark was found
+during research -- the UI says so explicitly rather than silently reusing
+the UK-wide gas figure under a "Scotland" label.
+
+**`src/carbon.py`** (Carbon tab): monthly/annual/weather-adjusted/forecast
+CO2e emissions from static, cited factors (`config.CarbonConfig`:
+electricity 0.207, gas 0.183 kgCO2e/kWh -- DESNZ/DEFRA GHG Conversion
+Factors). Only supported for Electricity/Gas individually -- "Total" can't
+be honestly split into a blended factor without knowing the mix. On the
+real data (2024, the most recent complete calendar year): 303 kg CO2e from
+electricity + 477 kg CO2e from gas = **0.78 tonnes CO2e combined**,
+independently cross-checked by manual recomputation from raw annual kWh ×
+factor (matches to the gram). Gas is 64% of combined kWh but only 61% of
+combined emissions, since it has a lower emission factor per kWh than grid
+electricity.
+
+**`src/recommendations.py`** gained `recommend_fuel_focus`: fires only when
+one fuel dominates *both* consumption/cost share and weather-sensitivity
+share (>60% each), matching the spec's own worked example almost exactly.
+On the real data it fires: *"Gas accounts for 65% of annual energy and
+drives 89% of heating sensitivity; reducing gas demand is likely to produce
+larger savings than reducing electricity use."* -- High confidence, since
+both fuels' heating sensitivity is statistically significant.
+
+The AI Analyst tab gained **Household Energy Profile**, **Electricity
+Findings**, and **Gas Findings** sections (from `AnalystReport`'s new
+`fuel_mix_finding`/`weather_sensitivity_finding`/`per_fuel_findings`
+fields); the Executive Summary gained a condensed version. Both stay fully
+deterministic and traceable, per the project's existing pattern.
+
+Coverage: 97% on `src/`, 258 tests total (up from 200). Deferred, not built
+in this phase: tariff-switch/solar/battery/heat-pump/EV cost-optimisation
+calculators (no roof/vehicle/appliance data exists to evaluate them
+against), live `carbonintensity.org.uk` integration (carbon stays
+offline-first with static factors), and Monte Carlo simulation -- see
+`docs/roadmap.md`.

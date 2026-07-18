@@ -10,6 +10,8 @@ comparing electricity vs. gas directly.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 import pandas as pd
 
@@ -19,6 +21,56 @@ from src.utils import get_logger, safe_divide
 logger = get_logger(__name__)
 
 _MIN_MONTHS_FOR_FUEL_MIX_FINDING = 6
+
+
+@dataclass
+class FuelShares:
+    """Structured gas/electricity split -- the numeric core of ``finding_fuel_mix``, exposed
+    separately so other modules (e.g. ``src.recommendations.recommend_fuel_focus``) can consume
+    the same numbers without re-deriving them or parsing the Finding's prose narrative."""
+
+    gas_share_kwh_pct: float
+    electricity_share_kwh_pct: float
+    gas_share_cost_pct: float
+    electricity_share_cost_pct: float
+    total_electricity_kwh: float
+    total_gas_kwh: float
+    total_electricity_cost_gbp: float
+    total_gas_cost_gbp: float
+    n_months: int
+
+
+def compute_fuel_shares(combined_df: pd.DataFrame) -> FuelShares | None:
+    """The gas/electricity consumption and cost split, from already-combined billing data.
+
+    Returns ``None`` under the same conditions ``finding_fuel_mix`` returns
+    ``None`` for (too little overlapping history, or zero total consumption).
+    """
+    if len(combined_df) < _MIN_MONTHS_FOR_FUEL_MIX_FINDING:
+        return None
+
+    total_elec_kwh = float(combined_df["electricity_kwh"].sum())
+    total_gas_kwh = float(combined_df["gas_kwh"].sum())
+    total_kwh = total_elec_kwh + total_gas_kwh
+    if total_kwh <= 0:
+        return None
+    gas_share_kwh = total_gas_kwh / total_kwh * 100
+
+    total_elec_cost = float(combined_df["electricity_cost_gbp"].sum())
+    total_gas_cost = float(combined_df["gas_cost_gbp"].sum())
+    gas_share_cost = safe_divide(total_gas_cost, total_elec_cost + total_gas_cost, default=0.0) * 100
+
+    return FuelShares(
+        gas_share_kwh_pct=gas_share_kwh,
+        electricity_share_kwh_pct=100 - gas_share_kwh,
+        gas_share_cost_pct=gas_share_cost,
+        electricity_share_cost_pct=100 - gas_share_cost,
+        total_electricity_kwh=total_elec_kwh,
+        total_gas_kwh=total_gas_kwh,
+        total_electricity_cost_gbp=total_elec_cost,
+        total_gas_cost_gbp=total_gas_cost,
+        n_months=len(combined_df),
+    )
 
 
 def cross_check_fuel_totals(
@@ -79,19 +131,9 @@ def finding_fuel_mix(combined_df: pd.DataFrame) -> Finding | None:
     Returns None if fewer than 6 months have both fuels recorded -- too
     little to say anything about seasonality.
     """
-    if len(combined_df) < _MIN_MONTHS_FOR_FUEL_MIX_FINDING:
+    shares = compute_fuel_shares(combined_df)
+    if shares is None:
         return None
-
-    total_elec_kwh = float(combined_df["electricity_kwh"].sum())
-    total_gas_kwh = float(combined_df["gas_kwh"].sum())
-    total_kwh = total_elec_kwh + total_gas_kwh
-    if total_kwh <= 0:
-        return None
-    gas_share_kwh = total_gas_kwh / total_kwh * 100
-
-    total_elec_cost = float(combined_df["electricity_cost_gbp"].sum())
-    total_gas_cost = float(combined_df["gas_cost_gbp"].sum())
-    gas_share_cost = safe_divide(total_gas_cost, total_elec_cost + total_gas_cost, default=0.0) * 100
 
     month_num = combined_df["month_start"].dt.month
     winter = combined_df[month_num.isin([12, 1, 2])]
@@ -111,17 +153,17 @@ def finding_fuel_mix(combined_df: pd.DataFrame) -> Finding | None:
             )
 
     narrative = (
-        f"Gas accounts for {gas_share_kwh:.0f}% of total energy consumption and {gas_share_cost:.0f}% of "
-        f"total cost across the {len(combined_df)} month(s) with both fuels recorded."
-        + seasonality_sentence
+        f"Gas accounts for {shares.gas_share_kwh_pct:.0f}% of total energy consumption and "
+        f"{shares.gas_share_cost_pct:.0f}% of total cost across the {shares.n_months} month(s) with both "
+        "fuels recorded." + seasonality_sentence
     )
 
     return Finding(
         title="Fuel mix",
         narrative=narrative,
         evidence=[
-            f"Electricity: {total_elec_kwh:,.0f} kWh, £{total_elec_cost:,.2f}",
-            f"Gas: {total_gas_kwh:,.0f} kWh, £{total_gas_cost:,.2f}",
+            f"Electricity: {shares.total_electricity_kwh:,.0f} kWh, £{shares.total_electricity_cost_gbp:,.2f}",
+            f"Gas: {shares.total_gas_kwh:,.0f} kWh, £{shares.total_gas_cost_gbp:,.2f}",
         ],
         confidence="High",
         confidence_reason="Directly summed from billing data across both fuels, not a statistical model.",

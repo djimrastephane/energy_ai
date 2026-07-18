@@ -2,11 +2,14 @@ import numpy as np
 import pandas as pd
 
 from src.anomalies import Anomaly
+from src.comparisons import WeatherSensitivityShares
 from src.confidence import ConfidenceRating
 from src.energy_signature import EnergySignatureResult
+from src.fuel import FuelShares
 from src.investigation import InvestigationChecklist, InvestigationItem
 from src.recommendations import (
     generate_recommendations,
+    recommend_fuel_focus,
     recommend_heating_review,
     recommend_investigate_anomaly,
     recommend_more_data,
@@ -160,6 +163,86 @@ def test_recommend_investigate_anomaly_generic_when_nothing_checked():
     rec = recommend_investigate_anomaly(_anomaly(), checklist, rating)
     assert rec is not None
     assert "remains unexplained" in rec.action
+
+
+def _fuel_shares(gas_share_kwh: float) -> FuelShares:
+    return FuelShares(
+        gas_share_kwh_pct=gas_share_kwh,
+        electricity_share_kwh_pct=100 - gas_share_kwh,
+        gas_share_cost_pct=gas_share_kwh,
+        electricity_share_cost_pct=100 - gas_share_kwh,
+        total_electricity_kwh=1000.0,
+        total_gas_kwh=1000.0,
+        total_electricity_cost_gbp=300.0,
+        total_gas_cost_gbp=300.0,
+        n_months=24,
+    )
+
+
+def _weather_shares(gas_share: float, gas_significant=True, electricity_significant=True) -> WeatherSensitivityShares:
+    return WeatherSensitivityShares(
+        gas_share_pct=gas_share,
+        electricity_share_pct=100 - gas_share,
+        gas_significant=gas_significant,
+        electricity_significant=electricity_significant,
+        dominant_fuel="gas" if gas_share >= 50 else "electricity",
+    )
+
+
+def test_recommend_fuel_focus_none_without_both_inputs():
+    assert recommend_fuel_focus(None, _weather_shares(80)) is None
+    assert recommend_fuel_focus(_fuel_shares(80), None) is None
+
+
+def test_recommend_fuel_focus_none_when_consumption_and_weather_dominance_disagree():
+    # Gas dominates consumption but electricity dominates weather sensitivity -- conflicting.
+    assert recommend_fuel_focus(_fuel_shares(80), _weather_shares(20)) is None
+
+
+def test_recommend_fuel_focus_none_below_dominance_threshold():
+    # Both point to gas, but only 55% -- not "clearly dominant" (60% threshold).
+    assert recommend_fuel_focus(_fuel_shares(55), _weather_shares(55)) is None
+
+
+def test_recommend_fuel_focus_fires_with_high_confidence_when_both_significant():
+    rec = recommend_fuel_focus(_fuel_shares(82), _weather_shares(87))
+
+    assert rec is not None
+    assert rec.title == "Focus on gas"
+    assert "82%" in rec.action
+    assert "87%" in rec.action
+    assert "reducing gas demand" in rec.action
+    assert rec.confidence == "High"
+    assert rec.estimated_saving_gbp is None
+
+
+def test_recommend_fuel_focus_medium_confidence_when_only_one_fuel_significant():
+    rec = recommend_fuel_focus(_fuel_shares(82), _weather_shares(87, electricity_significant=False))
+
+    assert rec is not None
+    assert rec.confidence == "Medium"
+
+
+def test_recommend_fuel_focus_fires_for_electricity_dominant_household():
+    rec = recommend_fuel_focus(_fuel_shares(gas_share_kwh=15), _weather_shares(gas_share=10))
+
+    assert rec is not None
+    assert rec.title == "Focus on electricity"
+    assert "reducing electricity demand" in rec.action
+
+
+def test_generate_recommendations_includes_fuel_focus_when_it_fires():
+    recs = generate_recommendations(
+        clean_df=_clean_df(),
+        merged_df=None,
+        energy_result=None,
+        forecast_rating=ConfidenceRating("High", "good"),
+        n_months=26,
+        fuel_shares=_fuel_shares(82),
+        weather_shares=_weather_shares(87),
+    )
+    assert len(recs) == 1
+    assert recs[0].title == "Focus on gas"
 
 
 def test_generate_recommendations_returns_empty_when_nothing_fires():

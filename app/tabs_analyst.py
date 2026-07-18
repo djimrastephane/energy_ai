@@ -17,6 +17,7 @@ from src.changepoints import ChangePoint
 from src.decomposition import STLResult
 from src.energy_signature import EnergySignatureResult
 from src.forecast_evaluation import ForecastResult
+from src.ingestion import EnergyType
 from src.narrative import monthly_narrative
 from src.preprocessing import PreprocessingReport
 from src.recommendations import NO_RECOMMENDATIONS_MESSAGE
@@ -36,6 +37,10 @@ def build_report(
     anomalies: list[Anomaly],
     forecast_result: ForecastResult | None,
     fuel: str = "total",
+    fuel_clean_dfs: dict[EnergyType, pd.DataFrame] | None = None,
+    fuel_stl_results: dict[EnergyType, STLResult | None] | None = None,
+    fuel_energy_results: dict[EnergyType, EnergySignatureResult | None] | None = None,
+    fuel_anomalies: dict[EnergyType, list[Anomaly]] | None = None,
 ) -> AnalystReport:
     """Thin wrapper around ``build_analyst_report``, deliberately uncached.
 
@@ -45,19 +50,72 @@ def build_report(
     pandas Series/DataFrames for no real benefit.
     """
     return build_analyst_report(
-        clean, report, stl_result, merged, energy_result, changepoints, anomalies, forecast_result, fuel
+        clean,
+        report,
+        stl_result,
+        merged,
+        energy_result,
+        changepoints,
+        anomalies,
+        forecast_result,
+        fuel,
+        fuel_clean_dfs,
+        fuel_stl_results,
+        fuel_energy_results,
+        fuel_anomalies,
     )
 
 
-def _render_findings(analyst_report: AnalystReport) -> None:
-    st.header("Key Findings")
-    for f in analyst_report.findings:
+def _render_finding_list(findings: list) -> None:
+    for f in findings:
         with st.expander(f"[{f.confidence}] {f.title}"):
             st.write(f.narrative)
             st.caption(f"Confidence: {f.confidence} -- {f.confidence_reason}")
             st.write("**Evidence:**")
             for e in f.evidence:
                 st.write(f"- {e}")
+
+
+def _render_findings(analyst_report: AnalystReport) -> None:
+    st.header("Key Findings")
+    _render_finding_list(analyst_report.findings)
+
+
+def _render_household_profile(analyst_report: AnalystReport) -> None:
+    if not (
+        analyst_report.fuel_mix_finding
+        or analyst_report.weather_sensitivity_finding
+        or analyst_report.per_fuel_findings
+    ):
+        return
+
+    st.header("Household Energy Profile")
+    if analyst_report.largest_cost_driver:
+        st.write(f"**Largest cost driver:** {analyst_report.largest_cost_driver}")
+    if analyst_report.fuel_mix_finding:
+        st.subheader("Fuel mix")
+        st.write(analyst_report.fuel_mix_finding.narrative)
+        st.caption(
+            f"Confidence: {analyst_report.fuel_mix_finding.confidence} -- "
+            f"{analyst_report.fuel_mix_finding.confidence_reason}"
+        )
+    if analyst_report.weather_sensitivity_finding:
+        st.subheader("Weather sensitivity by fuel")
+        st.write(analyst_report.weather_sensitivity_finding.narrative)
+        st.caption(
+            f"Confidence: {analyst_report.weather_sensitivity_finding.confidence} -- "
+            f"{analyst_report.weather_sensitivity_finding.confidence_reason}"
+        )
+
+    electricity_findings = analyst_report.per_fuel_findings.get("electricity", [])
+    if electricity_findings:
+        st.subheader("Electricity Findings")
+        _render_finding_list(electricity_findings)
+
+    gas_findings = analyst_report.per_fuel_findings.get("gas", [])
+    if gas_findings:
+        st.subheader("Gas Findings")
+        _render_finding_list(gas_findings)
 
 
 def _render_recommendations(analyst_report: AnalystReport) -> None:
@@ -121,6 +179,8 @@ def render_ai_analyst(
     st.write(analyst_report.executive_summary)
 
     _render_findings(analyst_report)
+
+    _render_household_profile(analyst_report)
 
     st.header("Largest Changes")
     st.write(analyst_report.biggest_finding.narrative if analyst_report.biggest_finding else "No standout change identified.")
