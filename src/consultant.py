@@ -254,7 +254,7 @@ def answer_last_month_anomaly(ctx: ConsultantContext) -> ConsultantAnswer:
             f"anomaly-detection methods.{in_progress_caveat}",
             evidence=[],
             confidence="Medium",
-            related_tab="Anomaly Detection",
+            related_tab="Unusual Months",
         )
     anomaly = matching[0]
     rating = rate_anomaly(anomaly)
@@ -267,7 +267,7 @@ def answer_last_month_anomaly(ctx: ConsultantContext) -> ConsultantAnswer:
         answer=answer,
         evidence=[f"Detected by: {', '.join(anomaly.methods)}", anomaly.rank_context],
         confidence=rating.level,
-        related_tab="Anomaly Detection",
+        related_tab="Unusual Months",
     )
 
 

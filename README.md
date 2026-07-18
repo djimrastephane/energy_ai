@@ -85,8 +85,8 @@ energy_ai/
 │   ├── tabs_comparisons.py # Comparisons: Electricity vs. Gas vs. Total, side by side
 │   ├── tabs_cost.py       # Cost Intelligence: billing breakdown, forecast bills, benchmarking
 │   ├── tabs_carbon.py     # Carbon: estimated CO2e emissions
-│   ├── tabs_phase2.py     # Seasonality, Weather Adjustment, Change Points
-│   ├── tabs_phase3.py     # Forecasting, Anomaly Detection
+│   ├── tabs_phase2.py     # Seasonal Patterns, Weather Impact, Usage Shifts
+│   ├── tabs_phase3.py     # Forecasting, Unusual Months (anomaly detection)
 │   ├── charts.py          # reusable Plotly chart builders (Phase 1-2)
 │   ├── charts_phase3.py   # forecast fan chart, model comparison, anomaly scatter
 │   ├── charts_fuel.py     # electricity-vs-gas comparison charts
@@ -153,7 +153,7 @@ months of history, not a shortcoming to paper over. Uncertainty bands
 residuals, not each library's own interval machinery, and are floored at
 zero (kWh can't be negative).
 
-The **Anomaly Detection** tab cross-references three methods (rolling
+The **Unusual Months** tab (anomaly detection) cross-references three methods (rolling
 z-score, STL-residual generalized ESD, Isolation Forest) so a month flagged
 by 2+ methods reads as meaningfully more confident than a single-method
 flag -- important because the median/MAD "Hybrid" ESD variant has a real,
@@ -213,7 +213,7 @@ re-verified empirically at ~5-6%.
 
 ## Weather adjustment
 
-The **Weather Adjustment** tab is opt-in (sidebar toggle, off by default)
+The **Weather Impact** tab is opt-in (sidebar toggle, off by default)
 since it fetches historical daily temperature from the free Open-Meteo
 archive API for the configured location (`config.py`'s `WeatherConfig`,
 currently Aberdeen/AB21). Results are cached to `data/processed/` so
@@ -267,7 +267,7 @@ days -- but gas carries the large majority of the heating signal. On the
 real billing data overall, gas is ~65% of consumption but only ~31% of
 cost (it's the cheaper fuel per kWh), and swings ~8x between winter and
 summer versus ~1.6x for electricity. Before this feature, the Total-only
-Weather Adjustment tab could only say "consistent with *some* electric
+Weather Impact tab could only say "consistent with *some* electric
 heating" -- switching the Fuel selector to "Electricity only" now shows
 directly how small that contribution actually is, rather than leaving it
 to be inferred from a combined fit.

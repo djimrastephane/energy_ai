@@ -29,11 +29,11 @@ def test_app_renders_without_exceptions():
         "Cost Intelligence",
         "Carbon",
         "Statistical Analysis",
-        "Seasonality & Trend",
-        "Weather Adjustment",
-        "Change Points",
+        "Seasonal Patterns",
+        "Weather Impact",
+        "Usage Shifts",
         "Forecasting",
-        "Anomaly Detection",
+        "Unusual Months",
         "Data Quality",
     ]
     assert len(at.get("metric")) > 0
@@ -99,13 +99,13 @@ def test_app_renders_without_exceptions():
     # Weather tab: toggle defaults off, so this must be the inert prompt, not a fetch attempt.
     assert any("turn on" in info.value.lower() for info in at.tabs[10].get("info"))
 
-    # Change Points tab: renders (either a detected-points table or the "stable" message).
+    # Usage Shifts tab: renders (either a detected-points table or the "stable" message).
     assert list(at.tabs[11].exception) == []
 
     # Forecasting tab: CV ran and picked a model, shown as a subheader.
     assert any("selected model" in md.value.lower() for md in at.tabs[12].get("subheader"))
 
-    # Anomaly Detection tab: renders without error, whatever it finds.
+    # Unusual Months tab: renders without error, whatever it finds.
     assert list(at.tabs[13].exception) == []
 
 
