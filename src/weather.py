@@ -1,3 +1,4 @@
+
 """Fetch historical daily temperature and derive monthly heating/cooling degree days.
 
 Weather data comes from the free Open-Meteo archive API (no key required)
