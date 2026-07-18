@@ -69,5 +69,5 @@ def render_fuel_breakdown(
     st.caption(
         "To see the weather-adjusted heating sensitivity for a single fuel (e.g. how much of "
         "the heating signal is really gas vs. electricity), switch the sidebar's Fuel selector "
-        "to 'Electricity only' or 'Gas only' and check the Weather Adjustment tab."
+        "to 'Electricity only' or 'Gas only' and check the Weather Impact tab."
     )

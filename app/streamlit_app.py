@@ -191,11 +191,11 @@ def main() -> None:
             "Cost Intelligence",
             "Carbon",
             "Statistical Analysis",
-            "Seasonality & Trend",
-            "Weather Adjustment",
-            "Change Points",
+            "Seasonal Patterns",
+            "Weather Impact",
+            "Usage Shifts",
             "Forecasting",
-            "Anomaly Detection",
+            "Unusual Months",
             "Data Quality",
         ]
     )
