@@ -37,6 +37,9 @@ def render_consultant(ctx: ConsultantContext) -> None:
         "list instead of guessing."
     )
 
+    if ctx.fuel_label:
+        st.caption(f"Answering for: **{ctx.fuel_label}** (change via the sidebar's Fuel selector)")
+
     question_text = st.text_input("Ask a question", placeholder="e.g. Why did my bill go up?")
 
     if question_text:

@@ -45,10 +45,12 @@ def test_app_renders_without_exceptions():
     # Household energy profile section (Task 10) -- real data has all 3 fuels available.
     assert any("household energy profile" in s.value.lower() for s in at.tabs[0].get("subheader"))
 
-    # AI Consultant tab: renders the question list without error.
+    # AI Consultant tab: renders the question list without error, and states which fuel
+    # its answers describe (audit finding F6).
     assert list(at.tabs[1].exception) == []
     assert any("questions i can answer" in md.value.lower() for md in at.tabs[1].get("markdown"))
     assert len(at.tabs[1].get("button")) == 8
+    assert any("answering for" in c.value.lower() for c in at.tabs[1].get("caption"))
 
     # AI Analyst: full deterministic report renders with every section present.
     assert list(at.tabs[2].exception) == []
