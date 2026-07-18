@@ -59,7 +59,6 @@ from tabs_core import (  # noqa: E402
 from tabs_cost import render_cost_intelligence  # noqa: E402
 from tabs_fuel import render_fuel_breakdown  # noqa: E402
 from tabs_phase2 import (  # noqa: E402
-    load_weather_analysis,
     render_change_points,
     render_seasonality,
     render_weather_adjustment,
@@ -71,11 +70,8 @@ from tabs_phase3 import (  # noqa: E402
     render_forecasting,
 )
 
-from src.anomalies import detect_anomalies  # noqa: E402
 from src.changepoints import detect_changepoints  # noqa: E402
 from src.consultant import ConsultantContext  # noqa: E402
-from src.decomposition import stl_decompose  # noqa: E402
-from src.weather import WeatherFetchError  # noqa: E402
 
 st.set_page_config(page_title="AI Home Energy Intelligence Platform", layout="wide")
 
@@ -107,29 +103,30 @@ def main() -> None:
         st.stop()
         return
 
-    try:
-        stl_result, stl_error = stl_decompose(clean), None
-    except ValueError as exc:
-        stl_result, stl_error = None, str(exc)
+    # One cached computation covers all three fuels; the selected fuel's results are pulled
+    # from it rather than recomputed separately (previously the selected fuel's STL and
+    # anomaly detection ran twice per rerun, uncached -- audit finding F8).
+    (
+        fuel_stl_results,
+        fuel_stl_errors,
+        fuel_anomalies_all,
+        fuel_merged,
+        fuel_energy_results,
+        fuel_weather_errors,
+    ) = compute_all_fuel_analysis(fuel_frames, weather_enabled)
 
+    stl_result = fuel_stl_results.get(fuel)
+    stl_error = fuel_stl_errors.get(fuel)
+    anomalies = fuel_anomalies_all.get(fuel, [])
     changepoints = detect_changepoints(stl_result.deseasonalized) if stl_result else []
-    anomalies = detect_anomalies(clean, stl_result) if stl_result else []
-
-    merged, energy_result, weather_error = None, None, None
-    if weather_enabled:
-        try:
-            merged, energy_result = load_weather_analysis(clean)
-        except (WeatherFetchError, ValueError) as exc:
-            weather_error = str(exc)
+    merged = fuel_merged.get(fuel) if weather_enabled else None
+    energy_result = fuel_energy_results.get(fuel) if weather_enabled else None
+    weather_error = fuel_weather_errors.get(fuel) if weather_enabled else None
 
     try:
         forecast_12mo, forecast_error = generate_forecast_cached(clean, 12, "auto"), None
     except ValueError as exc:
         forecast_12mo, forecast_error = None, str(exc)
-
-    fuel_stl_results, fuel_anomalies_all, fuel_merged, fuel_energy_results = compute_all_fuel_analysis(
-        fuel_frames, weather_enabled
-    )
 
     # Owned here (not in session state) so every consumer sees the same, current-data-consistent
     # result: the Cost Intelligence button sets the request flag and reruns, and the cached
