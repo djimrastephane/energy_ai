@@ -21,6 +21,7 @@ def test_app_renders_without_exceptions():
     assert list(at.exception) == []
     assert [t.label for t in at.tabs] == [
         "Executive Summary",
+        "AI Consultant",
         "AI Analyst",
         "Consumption Analysis",
         "Fuel Breakdown",
@@ -44,9 +45,14 @@ def test_app_renders_without_exceptions():
     # Household energy profile section (Task 10) -- real data has all 3 fuels available.
     assert any("household energy profile" in s.value.lower() for s in at.tabs[0].get("subheader"))
 
-    # AI Analyst: full deterministic report renders with every section present.
+    # AI Consultant tab: renders the question list without error.
     assert list(at.tabs[1].exception) == []
-    analyst_headers = " ".join(md.value.lower() for md in at.tabs[1].get("header"))
+    assert any("questions i can answer" in md.value.lower() for md in at.tabs[1].get("markdown"))
+    assert len(at.tabs[1].get("button")) == 8
+
+    # AI Analyst: full deterministic report renders with every section present.
+    assert list(at.tabs[2].exception) == []
+    analyst_headers = " ".join(md.value.lower() for md in at.tabs[2].get("header"))
     for section in (
         "executive summary",
         "key findings",
@@ -57,48 +63,94 @@ def test_app_renders_without_exceptions():
     ):
         assert section in analyst_headers
     # Electricity/Gas Findings render as subheaders, not headers -- a different AppTest element type.
-    analyst_subheaders = " ".join(md.value.lower() for md in at.tabs[1].get("subheader"))
+    analyst_subheaders = " ".join(md.value.lower() for md in at.tabs[2].get("subheader"))
     assert "electricity findings" in analyst_subheaders
     assert "gas findings" in analyst_subheaders
 
     # Fuel Breakdown tab: real data has all three fuel exports, so this should show the
     # cross-check status and a real (not placeholder) fuel-mix finding.
-    assert list(at.tabs[3].exception) == []
-    assert any("matches total" in s.value.lower() for s in at.tabs[3].get("success"))
-    assert any("fuel mix" in s.value.lower() for s in at.tabs[3].get("subheader"))
-    assert any("%" in md.value for md in at.tabs[3].get("markdown"))
+    assert list(at.tabs[4].exception) == []
+    assert any("matches total" in s.value.lower() for s in at.tabs[4].get("success"))
+    assert any("fuel mix" in s.value.lower() for s in at.tabs[4].get("subheader"))
+    assert any("%" in md.value for md in at.tabs[4].get("markdown"))
 
     # Comparisons tab (Task 2/5/6/7): renders without error; weather sensitivity needs the
     # weather toggle (off by default here), so it should show the inert prompt.
-    assert list(at.tabs[4].exception) == []
-    assert any("turn on" in info.value.lower() for info in at.tabs[4].get("info"))
+    assert list(at.tabs[5].exception) == []
+    assert any("turn on" in info.value.lower() for info in at.tabs[5].get("info"))
 
     # Cost Intelligence tab (Task 4/12): renders the combined cost breakdown table and
     # benchmark bands without needing the forecast button clicked.
-    assert list(at.tabs[5].exception) == []
-    assert len(at.tabs[5].get("dataframe")) > 0
-    assert any("vs." in m.label for m in at.tabs[5].get("metric"))
+    assert list(at.tabs[6].exception) == []
+    assert len(at.tabs[6].get("dataframe")) > 0
+    assert any("vs." in m.label for m in at.tabs[6].get("metric"))
 
     # Carbon tab (Task 8): real data has both electricity and gas, so this should show real
     # emissions numbers, not the unavailable-data message.
-    assert list(at.tabs[6].exception) == []
-    assert any("emissions" in m.label.lower() for m in at.tabs[6].get("metric"))
-    assert any("co2e" in m.value.lower() for m in at.tabs[6].get("metric"))
+    assert list(at.tabs[7].exception) == []
+    assert any("emissions" in m.label.lower() for m in at.tabs[7].get("metric"))
+    assert any("co2e" in m.value.lower() for m in at.tabs[7].get("metric"))
 
     # Seasonality tab: STL runs on the real (contiguous, 35-month) dataset without error.
-    assert any("seasonal" in md.value.lower() for md in at.tabs[8].get("markdown"))
+    assert any("seasonal" in md.value.lower() for md in at.tabs[9].get("markdown"))
 
     # Weather tab: toggle defaults off, so this must be the inert prompt, not a fetch attempt.
-    assert any("turn on" in info.value.lower() for info in at.tabs[9].get("info"))
+    assert any("turn on" in info.value.lower() for info in at.tabs[10].get("info"))
 
     # Change Points tab: renders (either a detected-points table or the "stable" message).
-    assert list(at.tabs[10].exception) == []
+    assert list(at.tabs[11].exception) == []
 
     # Forecasting tab: CV ran and picked a model, shown as a subheader.
-    assert any("selected model" in md.value.lower() for md in at.tabs[11].get("subheader"))
+    assert any("selected model" in md.value.lower() for md in at.tabs[12].get("subheader"))
 
     # Anomaly Detection tab: renders without error, whatever it finds.
-    assert list(at.tabs[12].exception) == []
+    assert list(at.tabs[13].exception) == []
+
+
+def test_consultant_preset_question_button_renders_real_answer():
+    """Clicking a preset question button on the AI Consultant tab must render a real answer
+    (evidence-backed, not a placeholder) without raising."""
+    at = AppTest.from_file(str(APP_PATH))
+    at.run(timeout=60)
+
+    consultant_tab = at.tabs[1]
+    button = next(b for b in consultant_tab.get("button") if "focus on reducing gas or electricity" in b.label.lower())
+    button.click().run(timeout=60)
+
+    assert list(at.exception) == []
+    assert list(at.tabs[1].exception) == []
+    markdown_text = " ".join(md.value.lower() for md in at.tabs[1].get("markdown"))
+    assert "gas" in markdown_text or "electricity" in markdown_text
+    assert len(at.tabs[1].get("expander")) > 0  # the evidence expander rendered
+
+
+def test_consultant_free_text_question_routes_correctly():
+    """Typing a natural-language phrasing of a supported question must route to the right
+    handler and render an answer, without needing the exact preset wording."""
+    at = AppTest.from_file(str(APP_PATH))
+    at.run(timeout=60)
+
+    consultant_tab = at.tabs[1]
+    text_input = consultant_tab.get("text_input")[0]
+    text_input.set_value("why did my bill increase this year").run(timeout=60)
+
+    assert list(at.exception) == []
+    assert list(at.tabs[1].exception) == []
+    markdown_text = " ".join(md.value.lower() for md in at.tabs[1].get("markdown"))
+    assert "why did my bill change" in markdown_text
+
+
+def test_consultant_unmatched_free_text_falls_back_to_question_list():
+    at = AppTest.from_file(str(APP_PATH))
+    at.run(timeout=60)
+
+    consultant_tab = at.tabs[1]
+    text_input = consultant_tab.get("text_input")[0]
+    text_input.set_value("asdkjaslkdj random gibberish text").run(timeout=60)
+
+    assert list(at.exception) == []
+    assert any("couldn't confidently match" in info.value.lower() for info in at.tabs[1].get("info"))
+    assert len(at.tabs[1].get("button")) == 8  # the fallback question list still renders
 
 
 def test_multi_fuel_forecast_button_populates_comparison_across_tabs():
@@ -107,15 +159,15 @@ def test_multi_fuel_forecast_button_populates_comparison_across_tabs():
     at = AppTest.from_file(str(APP_PATH))
     at.run(timeout=60)
 
-    cost_tab = at.tabs[5]
+    cost_tab = at.tabs[6]
     button = next(b for b in cost_tab.get("button") if "multi-fuel forecast" in b.label.lower())
     button.click().run(timeout=120)
 
     assert list(at.exception) == []
-    assert list(at.tabs[5].exception) == []
-    assert len(at.tabs[5].get("dataframe")) > 0
+    assert list(at.tabs[6].exception) == []
+    assert len(at.tabs[6].get("dataframe")) > 0
 
-    comparisons_tab = at.tabs[4]
+    comparisons_tab = at.tabs[5]
     assert list(comparisons_tab.exception) == []
     assert any("likely (kwh)" in df.value.columns.str.lower().tolist() for df in comparisons_tab.get("dataframe"))
 

@@ -50,6 +50,7 @@ from tabs_analyst import build_report, render_ai_analyst  # noqa: E402
 from tabs_briefing import render_executive_briefing  # noqa: E402
 from tabs_carbon import render_carbon  # noqa: E402
 from tabs_comparisons import render_comparisons  # noqa: E402
+from tabs_consultant import render_consultant  # noqa: E402
 from tabs_core import (  # noqa: E402
     render_consumption_analysis,
     render_data_quality,
@@ -67,6 +68,7 @@ from tabs_phase3 import generate_forecast_cached, render_anomalies, render_forec
 
 from src.anomalies import detect_anomalies  # noqa: E402
 from src.changepoints import detect_changepoints  # noqa: E402
+from src.consultant import ConsultantContext  # noqa: E402
 from src.decomposition import stl_decompose  # noqa: E402
 from src.weather import WeatherFetchError  # noqa: E402
 
@@ -139,9 +141,20 @@ def main() -> None:
         fuel_energy_results,
         fuel_anomalies_all,
     )
+    consultant_ctx = ConsultantContext(
+        analyst_report=analyst_report,
+        clean=clean,
+        fuel_frames=fuel_frames,
+        fuel_energy_results=fuel_energy_results,
+        anomalies=anomalies,
+        forecast_12mo=forecast_12mo,
+        multi_fuel_forecasts=st.session_state.get("multi_fuel_forecasts"),
+        weather_enabled=weather_enabled,
+    )
 
     (
         tab_summary,
+        tab_consultant,
         tab_analyst,
         tab_consumption,
         tab_fuel,
@@ -158,6 +171,7 @@ def main() -> None:
     ) = st.tabs(
         [
             "Executive Summary",
+            "AI Consultant",
             "AI Analyst",
             "Consumption Analysis",
             "Fuel Breakdown",
@@ -175,6 +189,8 @@ def main() -> None:
     )
     with tab_summary:
         render_executive_briefing(clean, analyst_report, forecast_12mo, forecast_error)
+    with tab_consultant:
+        render_consultant(consultant_ctx)
     with tab_analyst:
         render_ai_analyst(clean, merged, energy_result, anomalies, analyst_report)
     with tab_consumption:

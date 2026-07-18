@@ -6,11 +6,11 @@
 A local, no-cloud analytics platform for residential energy consumption,
 built on OVO Energy "Total Use" CSV exports (and, when available,
 fuel-level "Electricity Use"/"Gas Use" exports -- see
-[Fuel-level analysis](#fuel-level-analysis-electricity-vs-gas) and
-[Phase 4: household energy intelligence](#phase-4-household-energy-intelligence)
-below).
+[Fuel-level analysis](#fuel-level-analysis-electricity-vs-gas),
+[Phase 4: household energy intelligence](#phase-4-household-energy-intelligence),
+and the [AI Energy Consultant](#ai-energy-consultant) below).
 
-## Status: Phase 4 of 6, plus a decision-support layer
+## Status: Phase 4 of 6, plus a decision-support layer and an AI Consultant
 
 This is an intentionally broad, phased build. **Phase 1** covers data
 ingestion, validation, descriptive statistics, and core KPIs. **Phase 2**
@@ -25,9 +25,11 @@ findings, evidence-gated recommendations (never fabricated, never solar/EV/
 battery without the data to support it), an investigation checklist for
 anomalies/change points, and a deterministic "AI Analyst" report -- no LLM,
 no free-form generation, every conclusion traceable to a specific number
-computed elsewhere in the app. **Phase 4** (see below) compares Electricity/
-Gas/Total directly, adds cost intelligence, carbon estimates, and UK/
-Scotland benchmarking. See `docs/roadmap.md` for what Phases 5-6 still add,
+computed elsewhere in the app. **Phase 4** compares Electricity/Gas/Total
+directly, adds cost intelligence, carbon estimates, and UK/Scotland
+benchmarking. The **AI Energy Consultant** (see below) is a bounded,
+deterministic Q&A interface over everything above -- still no LLM. See
+`docs/roadmap.md` for what Phase 5 (SHAP/explainability) and Phase 6 add,
 and for the real bugs the manual real-data verification step caught along
 the way.
 
@@ -76,6 +78,7 @@ energy_ai/
 │   ├── sidebar.py         # sidebar controls + fuel-aware data loading
 │   ├── multi_fuel.py      # eagerly computes STL/anomalies/weather for all 3 fuels
 │   ├── tabs_briefing.py   # Executive Summary: evidence-based briefing, not a KPI dump
+│   ├── tabs_consultant.py # AI Consultant: bounded Q&A, free text + preset question list
 │   ├── tabs_analyst.py    # AI Analyst: the full deterministic report
 │   ├── tabs_core.py       # Consumption Analysis, Statistical Analysis, Data Quality
 │   ├── tabs_fuel.py       # Fuel Breakdown: electricity vs. gas comparison
@@ -118,6 +121,8 @@ energy_ai/
 │   ├── recommendations.py     # evidence-gated recommendation rules (never fabricated)
 │   ├── narrative.py           # deterministic per-month plain-English narrative
 │   ├── report.py              # AnalystReport: single source of truth for both report tabs
+│   ├── consultant.py           # AI Consultant: 8 canonical question handlers, no LLM
+│   ├── consultant_router.py    # keyword-match routing for the free-text question box
 │   └── utils.py               # logging, formatting, shared helpers
 ├── tests/                   # pytest suite (unit + integration + UI smoke test, network-free)
 ├── config.py                # paths, thresholds, weather/benchmark/carbon config -- no hard-coded paths
@@ -361,3 +366,49 @@ calculators (no roof/vehicle/appliance data exists to evaluate them
 against), live `carbonintensity.org.uk` integration (carbon stays
 offline-first with static factors), and Monte Carlo simulation -- see
 `docs/roadmap.md`.
+
+## AI Energy Consultant
+
+Requested directly by the user, after Phase 4: *"the analytics engine is
+now mature"* -- the next investment should be an interface over it, not
+more analysis. This is this project's original Phase 5 sketch, built early:
+*"A grounded, deterministic Q&A engine over the computed statistics (no
+LLM/paid API) -- answers only from data already computed, always citing the
+underlying numbers."*
+
+**The consultant explains analysis that's already been run -- it never runs
+new analysis.** Every answer comes from objects `main()` already computes
+(`AnalystReport`, the per-fuel result dicts, the forecast); visiting the
+tab triggers zero new computation. Without an LLM, "understands any
+question" wouldn't be honest, so it supports a bounded set of **8
+canonical questions**, each with its own deterministic handler in
+`src/consultant.py`. A free-text box (`app/tabs_consultant.py`) routes via
+simple keyword matching (`src/consultant_router.py`) to the same 8
+handlers, falling back to a visible clickable list -- not a guess -- when
+nothing matches confidently.
+
+Real answers this gives on the household's actual data (Total fuel, 35
+months, weather adjustment on):
+
+| Question | Answer |
+|---|---|
+| Why did my bill change? | *"Consumption is running at normal, expected levels compared to a year ago. Largest cost driver: Electricity (69% of combined cost). 2025: actual 4,418 kWh vs. weather-adjusted 4,157 kWh (+261 kWh) -- well explained by weather."* |
+| What changed compared with last winter? | *"Winter 2025/2026 used 21% less energy than winter 2024/2025 (1,720 kWh vs 2,187 kWh), costing £204.85 vs £219.11."* |
+| Should I focus on reducing gas or electricity? | *"Gas accounts for 65% of annual energy and drives 89% of heating sensitivity; reducing gas demand is likely to produce larger savings than reducing electricity use."* |
+| How does my usage compare to average? | *"Electricity usage is below average for a UK household (1,555 kWh/year vs a 2,500 kWh/year reference). Gas usage is below average (2,863 kWh/year vs a 9,500 kWh/year reference)."* |
+| What's my carbon footprint? | *"In 2025, estimated emissions were 0.85 tonnes CO2e -- 326 kg from electricity and 520 kg from gas."* |
+
+The one genuinely new piece of logic this needed:
+`src.kpis.winter_over_winter_comparison` (pure aggregation, sums kWh/cost
+per winter season -- not a new statistic); `winter_season_label` was
+promoted from `src/recommendations.py` to `src/utils.py` so both modules
+share the same December-groups-with-following-Jan/Feb convention.
+
+A real bug caught while building this: *"Where can I realistically save
+money?"* initially picked whichever recommendation happened to be first in
+the list -- which could be "Collect more historical data" (real advice,
+but not itself a savings action) even when a more directly relevant
+recommendation like "Focus on gas" had also fired. Fixed to prefer any
+actionable recommendation over that one.
+
+Coverage: 97% on `src/`, 291 tests total (up from 258).

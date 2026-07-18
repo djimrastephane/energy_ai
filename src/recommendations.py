@@ -19,7 +19,7 @@ from src.confidence import Confidence, ConfidenceRating
 from src.energy_signature import EnergySignatureResult
 from src.fuel import FuelShares
 from src.investigation import InvestigationChecklist
-from src.utils import format_gbp, get_logger
+from src.utils import format_gbp, get_logger, winter_season_label
 
 logger = get_logger(__name__)
 
@@ -43,11 +43,6 @@ class Recommendation:
     rationale: str
 
 
-def _winter_season_label(month_start: pd.Timestamp) -> int:
-    """Groups December with the following January/February into one winter, labeled by its Jan/Feb year."""
-    return month_start.year if month_start.month in (1, 2) else month_start.year + 1
-
-
 def recommend_heating_review(
     clean_df: pd.DataFrame,
     merged_df: pd.DataFrame | None,
@@ -67,7 +62,7 @@ def recommend_heating_review(
     winter_rows = merged_indexed[merged_indexed.index.month.isin(_WINTER_MONTHS)].copy()
     if winter_rows.empty:
         return None
-    winter_rows["season"] = [_winter_season_label(d) for d in winter_rows.index]
+    winter_rows["season"] = [winter_season_label(d) for d in winter_rows.index]
     complete_seasons = winter_rows.groupby("season").size()
     complete_seasons = complete_seasons[complete_seasons == 3].index
     if len(complete_seasons) == 0:
