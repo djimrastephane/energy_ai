@@ -45,6 +45,7 @@ for _p in (PROJECT_ROOT, APP_DIR):
 
 import streamlit as st  # noqa: E402
 from multi_fuel import compute_all_fuel_analysis  # noqa: E402
+from report_html import build_household_report_html  # noqa: E402
 from sidebar import render_sidebar  # noqa: E402
 from tabs_analyst import build_report, render_ai_analyst  # noqa: E402
 from tabs_briefing import render_executive_briefing  # noqa: E402
@@ -163,6 +164,56 @@ def main() -> None:
         weather_enabled=weather_enabled,
         fuel_label=fuel_label,
     )
+
+    # --- Household Energy Review download (sidebar, two-step) -----------------------------
+    # Generate-on-click keeps the ~4.9 MB build (measured 0.17 s) off the per-rerun path.
+    # The stored report carries a context fingerprint; if fuel/weather/data change, the
+    # stored copy is discarded rather than served stale -- the session-state lesson from
+    # audit findings F2/F7, applied preemptively.
+    report_fingerprint = (
+        fuel,
+        weather_enabled,
+        str(clean["month_start"].max()),
+        len(clean),
+        multi_fuel_forecasts is not None,
+    )
+    stored = st.session_state.get("household_report")
+    if stored is not None and stored[0] != report_fingerprint:
+        stored = None
+        del st.session_state["household_report"]
+
+    st.sidebar.divider()
+    st.sidebar.subheader("Report")
+    if stored is None:
+        if st.sidebar.button("Generate Household Energy Review"):
+            html = build_household_report_html(
+                analyst_report,
+                fuel_frames,
+                fuel_merged,
+                fuel_energy_results,
+                forecast_12mo,
+                weather_enabled,
+                report,
+            )
+            st.session_state["household_report"] = (report_fingerprint, html)
+            st.rerun()
+        st.sidebar.caption(
+            "Builds a self-contained HTML report (executive summary, findings, fuel mix, "
+            "weather, forecast, recommendations, methodology, limitations). For weather and "
+            "fuel-attribution sections, enable 'Weather adjustment' first."
+        )
+    else:
+        period_slug = f"{clean['month_start'].min().year}-{clean['month_start'].max().year}"
+        st.sidebar.download_button(
+            "Download Household Energy Review (HTML)",
+            data=stored[1],
+            file_name=f"household_energy_review_{period_slug}.html",
+            mime="text/html",
+        )
+        st.sidebar.caption(
+            "Open in a browser; charts are interactive. Print → 'Save as PDF' produces the "
+            "print-quality PDF version."
+        )
 
     (
         tab_summary,

@@ -195,6 +195,37 @@ def test_multi_fuel_forecast_button_populates_comparison_across_tabs():
     assert any("likely (kwh)" in df.value.columns.str.lower().tolist() for df in comparisons_tab.get("dataframe"))
 
 
+def test_report_generate_download_and_fingerprint_invalidation():
+    """The sidebar's two-step report flow: Generate builds and stores the HTML, Download
+    appears with a non-trivial payload, and switching fuel invalidates the stored report
+    (fingerprint mismatch) so a stale report is never served -- the audit F2/F7 lesson."""
+    at = AppTest.from_file(str(APP_PATH))
+    at.run(timeout=60)
+
+    gen = next(b for b in at.sidebar.button if "generate household energy review" in b.label.lower())
+    gen.click().run(timeout=120)
+
+    assert list(at.exception) == []
+    stored = at.session_state["household_report"]
+    assert stored is not None
+    fingerprint, html = stored
+    assert html.startswith("<!DOCTYPE html>")
+    assert len(html) > 1_000_000  # plotly.js inlined -- a real self-contained report
+    assert "Household Energy Review" in html
+    # Download button now present (a distinct AppTest element type), Generate gone.
+    download_labels = [d.label.lower() for d in at.sidebar.get("download_button")]
+    assert any("download household energy review" in label for label in download_labels)
+    assert not any("generate household energy review" in b.label.lower() for b in at.sidebar.button)
+
+    # Fuel switch -> fingerprint mismatch -> stored report discarded, Generate returns.
+    fuel_select = next(sb for sb in at.sidebar.selectbox if sb.label == "Fuel to analyze")
+    fuel_select.set_value("gas").run(timeout=120)
+    assert list(at.exception) == []
+    assert "household_report" not in at.session_state
+    assert any("generate household energy review" in b.label.lower() for b in at.sidebar.button)
+    assert at.sidebar.get("download_button") == []
+
+
 def test_fuel_selectbox_offers_all_three_fuels_and_switching_is_exception_free():
     """The real data/raw/ has Total/Electricity/Gas exports, so all three options should appear,
     and switching the selection must re-run the entire pipeline against that fuel's data cleanly.
