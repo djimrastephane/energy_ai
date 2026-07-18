@@ -120,7 +120,12 @@ def test_build_analyst_report_end_to_end_on_real_data():
     # December 2024 is the known, previously-verified strongest anomaly in this real dataset.
     assert analyst_report.biggest_finding is not None
     assert "December 2024" in analyst_report.biggest_finding.narrative
-    assert analyst_report.confidence["data_quality"].level == "High"  # 35 clean months, no gaps
+    # Data quality is Medium (not High) on the real data because the latest month (the
+    # current calendar month) is flagged as possibly month-to-date -- an intentional,
+    # honest downgrade added by the audit (finding F1): trailing-window KPIs include a
+    # month whose figures may still be accumulating.
+    assert analyst_report.confidence["data_quality"].level == "Medium"
+    assert "warning" in analyst_report.confidence["data_quality"].reason.lower()
     assert set(analyst_report.confidence) == {"data_quality", "weather_model", "forecast", "anomaly_detection"}
     # December 2024 was flagged by all 3 anomaly methods -> High confidence.
     assert analyst_report.confidence["anomaly_detection"].level == "High"

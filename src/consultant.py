@@ -232,11 +232,21 @@ def answer_last_month_anomaly(ctx: ConsultantContext) -> ConsultantAnswer:
         return ConsultantAnswer(question=question, answer="No data available.", evidence=[], confidence=None, related_tab=None)
     last_month = ctx.clean["month_start"].max()
     label = last_month.strftime("%B %Y")
+    # If the latest month is the current calendar month, its figures may still be
+    # accumulating (audit finding F1) -- say so rather than judging a partial month
+    # as if it were complete.
+    in_progress_caveat = ""
+    if last_month.to_period("M") == pd.Timestamp.now().to_period("M"):
+        in_progress_caveat = (
+            f" Note: {label} is the current month, so its figures may be month-to-date "
+            "rather than complete -- judge it with caution."
+        )
     matching = [a for a in ctx.anomalies if a.date == last_month]
     if not matching:
         return ConsultantAnswer(
             question=question,
-            answer=f"{label} looks normal -- it wasn't flagged as unusual by any of the three anomaly-detection methods.",
+            answer=f"{label} looks normal -- it wasn't flagged as unusual by any of the three "
+            f"anomaly-detection methods.{in_progress_caveat}",
             evidence=[],
             confidence="Medium",
             related_tab="Anomaly Detection",
@@ -245,7 +255,7 @@ def answer_last_month_anomaly(ctx: ConsultantContext) -> ConsultantAnswer:
     rating = rate_anomaly(anomaly)
     answer = (
         f"{label} was flagged as a {anomaly.direction}, detected by {len(anomaly.methods)} of 3 methods "
-        f"({', '.join(anomaly.methods)}) -- {anomaly.rank_context}."
+        f"({', '.join(anomaly.methods)}) -- {anomaly.rank_context}.{in_progress_caveat}"
     )
     return ConsultantAnswer(
         question=question,
