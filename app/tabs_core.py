@@ -70,7 +70,9 @@ def render_data_quality(
         else "n/a"
     )
     c3.metric("Date range", date_range_str)
-    st.write("**Source files:** " + ", ".join(report.source_files))
+    # Filenames are user-supplied (uploads) -- backtick-wrap so markdown in a name
+    # renders literally instead of altering the page (audit finding F9).
+    st.write("**Source files:** " + ", ".join(f"`{name}`" for name in report.source_files))
 
     st.divider()
     if report.missing_months:
