@@ -161,6 +161,7 @@ def main() -> None:
         forecast_12mo=forecast_12mo,
         multi_fuel_forecasts=multi_fuel_forecasts,
         weather_enabled=weather_enabled,
+        fuel_label=fuel_label,
     )
 
     (

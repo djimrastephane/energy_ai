@@ -83,7 +83,7 @@ def render_executive_briefing(
         st.write(NO_SAVINGS_MESSAGE)
 
     st.divider()
-    st.subheader("Forecast: expected annual bill")
+    st.subheader("Forecast: expected annual energy cost (excl. standing charges)")
     if forecast_error:
         st.info(f"Forecast unavailable: {forecast_error}")
     elif forecast_12mo is not None:
@@ -91,11 +91,16 @@ def render_executive_briefing(
         best = float(forecast_12mo.p10.sum())  # lower kWh = lower bill = best case for the wallet
         likely = float(forecast_12mo.p50.sum())
         worst = float(forecast_12mo.p90.sum())  # higher kWh = higher bill = worst plausible case
-        tooltip = "From resampling the model's own past forecast errors -- a plausible range, not a guarantee."
+        tooltip = (
+            "From resampling the model's own past forecast errors -- a plausible range, not a "
+            "guarantee. Covers energy consumption cost only: the billing exports don't break out "
+            "standing charges, so your actual bill will be higher by that fixed daily amount."
+        )
+        # Whole pounds: bootstrap uncertainty bands don't support penny precision.
         c1, c2, c3 = st.columns(3)
-        c1.metric("Best case", format_gbp(best * unit_rate), help=tooltip)
-        c2.metric("Most likely", format_gbp(likely * unit_rate), help=tooltip)
-        c3.metric("Worst plausible", format_gbp(worst * unit_rate), help=tooltip)
+        c1.metric("Best case", f"£{best * unit_rate:,.0f}", help=tooltip)
+        c2.metric("Most likely", f"£{likely * unit_rate:,.0f}", help=tooltip)
+        c3.metric("Worst plausible", f"£{worst * unit_rate:,.0f}", help=tooltip)
         st.caption(
             f"Based on the {forecast_12mo.model_name} model (auto-selected by cross-validation). "
             "See the Forecasting tab for the full model comparison and chart."

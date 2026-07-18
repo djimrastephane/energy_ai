@@ -17,7 +17,6 @@ from src.energy_signature import EnergySignatureResult
 from src.forecast_evaluation import ForecastResult, generate_forecast
 from src.ingestion import EnergyType
 from src.investigation import build_investigation_checklist
-from src.utils import format_gbp
 
 
 @st.cache_data(show_spinner="Cross-validating forecasting models...")
@@ -81,17 +80,20 @@ def render_forecasting(clean: pd.DataFrame, horizon: int, model_choice: str) -> 
     tooltip = (
         "These come from resampling the model's own past forecast errors, scaled up the further "
         "ahead the month is -- a plausible range, not a guarantee. 'Best'/'Worst' refer to your "
-        "bill (lower consumption is better for cost), not to forecast accuracy."
+        "bill (lower consumption is better for cost), not to forecast accuracy. £ figures cover "
+        "energy consumption only -- standing charges aren't in the billing exports, so actual "
+        "bills will be higher by that fixed daily amount."
     )
+    # Whole pounds for forecast £: bootstrap bands don't support penny precision.
     c1, c2, c3 = st.columns(3)
     c1.metric(
-        f"Best plausible ({horizon}mo)", f"{total_best:,.0f} kWh", format_gbp(total_best * unit_rate), help=tooltip
+        f"Best plausible ({horizon}mo)", f"{total_best:,.0f} kWh", f"£{total_best * unit_rate:,.0f}", help=tooltip
     )
     c2.metric(
-        f"Most likely ({horizon}mo)", f"{total_likely:,.0f} kWh", format_gbp(total_likely * unit_rate), help=tooltip
+        f"Most likely ({horizon}mo)", f"{total_likely:,.0f} kWh", f"£{total_likely * unit_rate:,.0f}", help=tooltip
     )
     c3.metric(
-        f"Worst plausible ({horizon}mo)", f"{total_worst:,.0f} kWh", format_gbp(total_worst * unit_rate), help=tooltip
+        f"Worst plausible ({horizon}mo)", f"{total_worst:,.0f} kWh", f"£{total_worst * unit_rate:,.0f}", help=tooltip
     )
 
     st.subheader("Model comparison (cross-validated MAE, lower is better)")

@@ -55,6 +55,9 @@ class ConsultantContext:
     forecast_12mo: ForecastResult | None
     multi_fuel_forecasts: dict[EnergyType, ForecastResult] | None
     weather_enabled: bool
+    # Which fuel the selected-fuel answers describe (e.g. "Gas only") -- displayed by the UI
+    # so "your forecast" is never silently a single-fuel number (audit finding F6).
+    fuel_label: str = ""
 
 
 def answer_bill_change(ctx: ConsultantContext) -> ConsultantAnswer:
@@ -153,10 +156,12 @@ def answer_forecast(ctx: ConsultantContext) -> ConsultantAnswer:
     likely_gbp = float(ctx.forecast_12mo.p50.sum()) * unit_rate
     best_gbp = float(ctx.forecast_12mo.p10.sum()) * unit_rate
     worst_gbp = float(ctx.forecast_12mo.p90.sum()) * unit_rate
+    # Whole pounds (bootstrap bands don't support penny precision), and "energy cost" rather
+    # than "bill" -- the billing exports carry consumption cost only, no standing charges.
     answer = (
         f"Over the next 12 months, the {ctx.forecast_12mo.model_name} model (auto-selected by "
-        f"cross-validation) predicts a most-likely bill of {format_gbp(likely_gbp)} (plausible range "
-        f"{format_gbp(best_gbp)}-{format_gbp(worst_gbp)})."
+        f"cross-validation) predicts a most-likely energy cost of £{likely_gbp:,.0f} (plausible "
+        f"range £{best_gbp:,.0f}-£{worst_gbp:,.0f}), excluding standing charges."
     )
     evidence = [f"Model: {ctx.forecast_12mo.model_name}", f"P50 forecast: {ctx.forecast_12mo.p50.sum():,.0f} kWh"]
     if ctx.multi_fuel_forecasts:
