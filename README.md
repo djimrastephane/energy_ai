@@ -1,5 +1,7 @@
 # AI Home Energy Intelligence Platform
 
+![coverage](https://img.shields.io/badge/coverage-96%25-brightgreen)
+
 A local, no-cloud analytics platform for residential energy consumption,
 built on OVO Energy "Total Use" CSV exports (and, when available,
 fuel-level "Electricity Use"/"Gas Use" exports -- see
