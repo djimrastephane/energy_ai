@@ -91,3 +91,13 @@ def pct_change(current: float, previous: float) -> float | None:
     if previous == 0:
         return None
     return (current - previous) / previous * 100.0
+
+
+def winter_season_label(month_start: datetime) -> int:
+    """Groups December with the following January/February into one winter, labeled by its Jan/Feb year.
+
+    Shared by ``src.recommendations`` (heating-review threshold) and
+    ``src.kpis`` (winter-over-winter comparison) so both group winters
+    identically without one importing from the other.
+    """
+    return month_start.year if month_start.month in (1, 2) else month_start.year + 1

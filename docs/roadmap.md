@@ -213,12 +213,46 @@ roof/vehicle/appliance data exists to evaluate them against -- same
 live `carbonintensity.org.uk` integration (carbon estimates stay
 offline-first with static factors instead); Monte Carlo simulation.
 
-## Phase 5 -- explainability and AI assistant
+## AI Energy Consultant -- done
+
+Requested directly by the user: "the analytics engine is now mature" --
+invest in an *interface* over it, not more analysis. Matches this
+roadmap's original Phase 5 sketch almost exactly (a grounded, deterministic
+Q&A engine, no LLM, always citing the underlying numbers). The consultant
+explains analysis that's already been run -- it never runs new analysis;
+every answer is built from objects `main()` already computes (`AnalystReport`,
+the per-fuel result dicts, the forecast), so visiting the tab triggers zero
+new computation.
+
+- `src/consultant.py` + `src/consultant_router.py`: 8 canonical questions
+  ("Why did my bill change?", "What changed compared with last winter?",
+  "Should I focus on reducing gas or electricity?", "What's my forecast for
+  next year?", "How does my usage compare to average?", "What's my carbon
+  footprint?", "Was last month's usage normal, or an anomaly?", "Where can
+  I realistically save money?"), each a deterministic handler pulling from
+  already-computed `Finding`/`Recommendation`/comparison/benchmark/carbon
+  objects. Without an LLM, "understands any question" isn't honest, so a
+  free-text box routes via keyword matching to the same 8 handlers and
+  falls back to a visible clickable list (not a guess) when nothing matches.
+- `src/kpis.py` gained `winter_over_winter_comparison` (the one genuinely
+  new piece of logic -- pure aggregation, sums kWh/cost per winter season,
+  not a new statistic); `winter_season_label` was promoted from
+  `src/recommendations.py` to `src/utils.py` so both modules share it.
+- New **AI Consultant** tab, positioned second (right after Executive
+  Summary) as the primary entry point for quick questions before the full
+  AI Analyst report.
+- A real bug caught during build: "Where can I realistically save money?"
+  initially picked whichever recommendation happened to be first in the
+  list, which could be "Collect more historical data" (real advice, but
+  not itself a savings action) even when a more directly relevant
+  recommendation like "Focus on gas" had also fired. Fixed to prefer any
+  actionable recommendation over that one, falling back to it only when
+  it's the sole recommendation available.
+- Coverage: 97% on `src/`, 291 tests total (up from 258).
+
+## Phase 5 -- explainability
 
 - Feature importance / SHAP for the regression and ML forecast models.
-- A grounded, deterministic Q&A engine over the computed statistics (no
-  LLM/paid API) -- answers only from data already computed, always citing
-  the underlying numbers.
 
 ## Phase 6 -- reporting and docs
 

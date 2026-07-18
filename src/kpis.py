@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-from src.utils import get_logger, pct_change, safe_divide
+from src.utils import get_logger, pct_change, safe_divide, winter_season_label
 
 logger = get_logger(__name__)
 
@@ -168,4 +168,42 @@ def year_to_date_comparison(df: pd.DataFrame) -> dict | None:
         "current_cost_gbp": current_cost,
         "previous_cost_gbp": previous_cost,
         "cost_pct_change": pct_change(current_cost, previous_cost),
+    }
+
+
+def winter_over_winter_comparison(df: pd.DataFrame) -> dict | None:
+    """Compare the latest *complete* winter (Dec+Jan+Feb, all three months present) to the
+    previous complete winter -- same aggregate-and-diff pattern as :func:`full_year_comparison`,
+    just season-scoped instead of calendar-year-scoped.
+
+    Returns None if fewer than 2 complete winters exist.
+    """
+    winter_df = df[df["month_start"].dt.month.isin([12, 1, 2])].copy()
+    if winter_df.empty:
+        return None
+    winter_df["winter_season"] = [winter_season_label(d) for d in winter_df["month_start"]]
+
+    season_sizes = winter_df.groupby("winter_season").size()
+    complete_seasons = sorted(season_sizes[season_sizes == 3].index)
+    if len(complete_seasons) < 2:
+        return None
+
+    latest_season, previous_season = complete_seasons[-1], complete_seasons[-2]
+    latest_rows = winter_df[winter_df["winter_season"] == latest_season]
+    previous_rows = winter_df[winter_df["winter_season"] == previous_season]
+
+    latest_kwh = float(latest_rows["consumption_kwh"].sum())
+    previous_kwh = float(previous_rows["consumption_kwh"].sum())
+    latest_cost = float(latest_rows["cost_gbp"].sum())
+    previous_cost = float(previous_rows["cost_gbp"].sum())
+
+    return {
+        "latest_season": latest_season,
+        "previous_season": previous_season,
+        "latest_kwh": latest_kwh,
+        "previous_kwh": previous_kwh,
+        "kwh_pct_change": pct_change(latest_kwh, previous_kwh),
+        "latest_cost_gbp": latest_cost,
+        "previous_cost_gbp": previous_cost,
+        "cost_pct_change": pct_change(latest_cost, previous_cost),
     }
