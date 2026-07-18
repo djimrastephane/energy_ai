@@ -71,6 +71,53 @@ class WeatherConfig:
 
 
 @dataclass(frozen=True)
+class BenchmarkConfig:
+    """Published UK/Scotland average annual consumption, for the Cost Intelligence tab's
+    "below/average/above average" benchmarking (never a single "Energy Score" -- see
+    ``src.benchmarking``).
+
+    UK figures: Ofgem "Review of typical domestic consumption values" (TDCV), decision
+    published 2026, effective from July 2026 -- medium-usage household. Supersedes the
+    older, still widely-cited 2023 TDCV figures (2,700 kWh electricity / 11,500 kWh gas).
+
+    Scotland electricity figure: DESNZ/ONS sub-national electricity consumption
+    statistics (England 3,462 / Scotland 3,429 / Wales 3,213 kWh/year -- most recent
+    available at time of writing). No Scotland-specific *gas* consumption figure was
+    found during research -- ``src.benchmarking`` and the UI say so explicitly rather
+    than silently reusing the UK-wide gas figure under a "Scotland" label.
+    """
+
+    uk_electricity_kwh_per_year: float = 2500.0
+    uk_gas_kwh_per_year: float = 9500.0
+    scotland_electricity_kwh_per_year: float = 3429.0
+    scotland_gas_kwh_per_year: float | None = None  # deliberately unavailable -- see docstring
+    band_tolerance_pct: float = 15.0  # +/- this % of the reference = "Average"
+
+
+@dataclass(frozen=True)
+class CarbonConfig:
+    """UK grid/gas emission factors for the Carbon tab's estimates (``src.carbon``).
+
+    Static, documented, offline constants -- not a live API -- consistent with this
+    project's "not live data" approach to benchmarking elsewhere in Phase 4.
+
+    electricity_kg_co2e_per_kwh: UK Government (DESNZ/DEFRA) GHG Conversion Factors for
+    Company Reporting, 2024 edition, location-based UK grid electricity. The grid factor
+    has been declining year over year with continued decarbonisation (a further ~26%
+    reduction was reported for more recent editions during research, but could not be
+    confirmed to a precise, citable figure at time of writing) -- this should be treated
+    as a periodically-refreshed estimate, not a permanent constant.
+
+    gas_kg_co2e_per_kwh: DEFRA GHG Conversion Factors, natural gas combustion (gross
+    calorific value basis) -- stable at ~0.182-0.184 kgCO2e/kWh across recent editions,
+    since it reflects the chemistry of combustion rather than the grid mix.
+    """
+
+    electricity_kg_co2e_per_kwh: float = 0.207
+    gas_kg_co2e_per_kwh: float = 0.183
+
+
+@dataclass(frozen=True)
 class Settings:
     project_root: Path = PROJECT_ROOT
     raw_data_dir: Path = RAW_DATA_DIR
@@ -81,6 +128,8 @@ class Settings:
     validation: ValidationThresholds = field(default_factory=ValidationThresholds)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     weather: WeatherConfig = field(default_factory=WeatherConfig)
+    benchmark: BenchmarkConfig = field(default_factory=BenchmarkConfig)
+    carbon: CarbonConfig = field(default_factory=CarbonConfig)
 
 
 SETTINGS = Settings()

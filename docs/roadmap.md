@@ -138,18 +138,80 @@ since none of it was ever Total-specific by name.
   section.
 - Coverage: 96% on `src/`, 193 tests total (up from 180).
 
-## Phase 4 -- benchmarking, optimisation, carbon, Monte Carlo
+## Phase 4 -- household energy intelligence -- done
 
-- Benchmarking against documented public UK/Scotland averages (Ofgem/DESNZ
-  figures, cited with source and year, stored as config constants -- not
-  live data).
-- Cost-optimisation calculators (tariff switch, standby reduction, solar,
-  battery, heat pump, EV/off-peak charging) as engineering estimates with
-  stated, user-adjustable assumptions.
-- Carbon analysis, optionally using the free carbonintensity.org.uk API for
-  UK grid intensity.
-- Monte Carlo simulation over inflation/temperature/occupancy/solar/battery
-  scenarios.
+Requested directly by the user: turn the app from "electricity analytics"
+into genuine household energy intelligence -- compare fuels directly,
+explain *why* energy changed and *which fuel* caused it, add cost/carbon
+estimation, and benchmark against published averages. Most of this reuses
+Phases 1-3 and the fuel-level analysis exactly as-is (no `EnergyStream`
+wrapper class was built -- the existing `fuel: str` / sidebar-selector
+pattern already made every analysis generic over Electricity/Gas/Total);
+only genuinely new comparisons/cost/carbon/benchmarking logic was added.
+
+- `src/comparisons.py` + `src/cross_fuel_anomalies.py`: annual/monthly/
+  seasonality comparison tables across fuels; `compare_weather_sensitivity`
+  (which fuel's usage responds more to weather -- confirms the earlier
+  fuel-level-analysis finding as a reusable `Finding`: **gas explains 89%**
+  of the two fuels' combined heating-driven response, electricity 11%);
+  `compare_weather_adjusted_annual` (thin wrapper over the existing
+  `annual_weather_adjusted_comparison`, run per fuel); `cross_fuel_anomaly_insights`
+  cross-references each fuel's independently-detected anomalies to
+  attribute a flagged month to one fuel (electricity-only -> appliance/
+  occupancy, gas-only -> heating event, both -> weather-driven *unless* the
+  weather-adjusted residual says otherwise, opposite-direction conflicts ->
+  attributed to the stronger signal with the conflict stated explicitly,
+  never silently resolved).
+- `src/cost_engine.py`: per-fuel and combined cost breakdown (annual total,
+  monthly average, effective £/kWh, YoY trend) and `forecast_bill_by_fuel`
+  (converts each fuel's already-computed forecast to £, opt-in via a button
+  since it triples the walk-forward-CV cost). **Standing charges are
+  deliberately omitted** -- the OVO exports have no standing-charge/tariff-
+  rate column at all, so fabricating a split would violate this platform's
+  core "never invent a number" rule.
+- `src/benchmarking.py`: Below/Average/Above-average bands (±15% tolerance,
+  never a single "Energy Score") against Ofgem TDCV (2,500 kWh electricity
+  / 9,500 kWh gas/year, medium usage, 2026) and Scotland-specific
+  electricity consumption (3,429 kWh/year, DESNZ/ONS sub-national
+  statistics). No Scotland-specific *gas* benchmark was found during
+  research -- the UI says so explicitly rather than silently reusing the
+  UK-wide figure under a "Scotland" label.
+- `src/carbon.py`: monthly/annual/weather-adjusted/forecast CO2e emissions,
+  static cited factors (`config.CarbonConfig`: electricity 0.207, gas 0.183
+  kgCO2e/kWh) -- only supported for Electricity/Gas individually, since a
+  blended factor for "Total" can't be honestly computed without knowing the
+  split. On the real data (2024, the most recent complete year): 303 kg
+  CO2e electricity + 477 kg CO2e gas = **0.78 tonnes CO2e combined**,
+  cross-checked by independent manual recomputation.
+- `src/recommendations.py` gained `recommend_fuel_focus`: fires only when
+  one fuel dominates *both* consumption/cost share and weather-sensitivity
+  share (>60% each). Fires on the real data: **"Focus on gas"**, High
+  confidence (gas is 65% of consumption and 89% of heating sensitivity).
+- `src/report.py`'s `AnalystReport` gained `fuel_mix_finding`,
+  `weather_sensitivity_finding`, `largest_cost_driver`,
+  `weather_vs_behavioural_summary`, `per_fuel_findings` -- new "Household
+  Energy Profile"/"Electricity Findings"/"Gas Findings" sections on the AI
+  Analyst tab, still fully deterministic, still traceable to a `Finding`/
+  `Recommendation` object.
+- Three new tabs: **Comparisons**, **Cost Intelligence** (includes
+  benchmarking), **Carbon**.
+- A real logic bug caught by manual verification against the real December
+  2024 anomaly: electricity *dropped* (149 kWh, 1 method) while gas
+  *spiked* (589 kWh, all 3 methods, weather-adjusted z=+1.96) the same
+  month -- the initial cross-fuel classification called this "both moved
+  together" without checking direction agreement, which is simply false
+  when one fuel drops and the other spikes. Fixed to detect direction
+  conflicts and attribute to the stronger signal (gas here) rather than
+  forcing a shared-driver conclusion, with the conflict stated in the
+  evidence rather than hidden.
+- Coverage: 97% on `src/`, 258 tests total (up from 200).
+
+Deferred, not built in this phase (kept honest rather than rushed):
+tariff-switch/solar/battery/heat-pump/EV cost-optimisation calculators (no
+roof/vehicle/appliance data exists to evaluate them against -- same
+"absence of a code path" principle as the no-solar-recommendation rule);
+live `carbonintensity.org.uk` integration (carbon estimates stay
+offline-first with static factors instead); Monte Carlo simulation.
 
 ## Phase 5 -- explainability and AI assistant
 

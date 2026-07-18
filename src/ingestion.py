@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import fnmatch
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 import pandas as pd
 
@@ -36,6 +36,12 @@ FUEL_FILE_PATTERNS: dict[str, str] = {
     "electricity": "*Electricity Use*.csv",
     "gas": "*Gas Use*.csv",
 }
+
+# The one generic "energy stream" type every Phase 4 module is written against
+# (see FUEL_FILE_PATTERNS above) -- there is deliberately no separate wrapper
+# class per fuel; every analysis function already operates on "a monthly clean
+# DataFrame with consumption_kwh/cost_gbp" regardless of which fuel produced it.
+EnergyType = Literal["total", "electricity", "gas"]
 
 
 class IngestionError(ValueError):

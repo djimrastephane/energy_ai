@@ -24,6 +24,9 @@ def test_app_renders_without_exceptions():
         "AI Analyst",
         "Consumption Analysis",
         "Fuel Breakdown",
+        "Comparisons",
+        "Cost Intelligence",
+        "Carbon",
         "Statistical Analysis",
         "Seasonality & Trend",
         "Weather Adjustment",
@@ -38,12 +41,25 @@ def test_app_renders_without_exceptions():
     assert any("overall assessment" in md.value.lower() for md in at.tabs[0].get("subheader"))
     assert any("biggest finding" in md.value.lower() for md in at.tabs[0].get("subheader"))
     assert list(at.tabs[0].exception) == []
+    # Household energy profile section (Task 10) -- real data has all 3 fuels available.
+    assert any("household energy profile" in s.value.lower() for s in at.tabs[0].get("subheader"))
 
     # AI Analyst: full deterministic report renders with every section present.
     assert list(at.tabs[1].exception) == []
     analyst_headers = " ".join(md.value.lower() for md in at.tabs[1].get("header"))
-    for section in ("executive summary", "key findings", "recommendations", "confidence", "limitations"):
+    for section in (
+        "executive summary",
+        "key findings",
+        "household energy profile",
+        "recommendations",
+        "confidence",
+        "limitations",
+    ):
         assert section in analyst_headers
+    # Electricity/Gas Findings render as subheaders, not headers -- a different AppTest element type.
+    analyst_subheaders = " ".join(md.value.lower() for md in at.tabs[1].get("subheader"))
+    assert "electricity findings" in analyst_subheaders
+    assert "gas findings" in analyst_subheaders
 
     # Fuel Breakdown tab: real data has all three fuel exports, so this should show the
     # cross-check status and a real (not placeholder) fuel-mix finding.
@@ -52,20 +68,56 @@ def test_app_renders_without_exceptions():
     assert any("fuel mix" in s.value.lower() for s in at.tabs[3].get("subheader"))
     assert any("%" in md.value for md in at.tabs[3].get("markdown"))
 
+    # Comparisons tab (Task 2/5/6/7): renders without error; weather sensitivity needs the
+    # weather toggle (off by default here), so it should show the inert prompt.
+    assert list(at.tabs[4].exception) == []
+    assert any("turn on" in info.value.lower() for info in at.tabs[4].get("info"))
+
+    # Cost Intelligence tab (Task 4/12): renders the combined cost breakdown table and
+    # benchmark bands without needing the forecast button clicked.
+    assert list(at.tabs[5].exception) == []
+    assert len(at.tabs[5].get("dataframe")) > 0
+    assert any("vs." in m.label for m in at.tabs[5].get("metric"))
+
+    # Carbon tab (Task 8): real data has both electricity and gas, so this should show real
+    # emissions numbers, not the unavailable-data message.
+    assert list(at.tabs[6].exception) == []
+    assert any("emissions" in m.label.lower() for m in at.tabs[6].get("metric"))
+    assert any("co2e" in m.value.lower() for m in at.tabs[6].get("metric"))
+
     # Seasonality tab: STL runs on the real (contiguous, 35-month) dataset without error.
-    assert any("seasonal" in md.value.lower() for md in at.tabs[5].get("markdown"))
+    assert any("seasonal" in md.value.lower() for md in at.tabs[8].get("markdown"))
 
     # Weather tab: toggle defaults off, so this must be the inert prompt, not a fetch attempt.
-    assert any("turn on" in info.value.lower() for info in at.tabs[6].get("info"))
+    assert any("turn on" in info.value.lower() for info in at.tabs[9].get("info"))
 
     # Change Points tab: renders (either a detected-points table or the "stable" message).
-    assert list(at.tabs[7].exception) == []
+    assert list(at.tabs[10].exception) == []
 
     # Forecasting tab: CV ran and picked a model, shown as a subheader.
-    assert any("selected model" in md.value.lower() for md in at.tabs[8].get("subheader"))
+    assert any("selected model" in md.value.lower() for md in at.tabs[11].get("subheader"))
 
     # Anomaly Detection tab: renders without error, whatever it finds.
-    assert list(at.tabs[9].exception) == []
+    assert list(at.tabs[12].exception) == []
+
+
+def test_multi_fuel_forecast_button_populates_comparison_across_tabs():
+    """Clicking the opt-in forecast-comparison button on Cost Intelligence must not raise, and
+    the result should also become visible on the Comparisons tab (shared via session state)."""
+    at = AppTest.from_file(str(APP_PATH))
+    at.run(timeout=60)
+
+    cost_tab = at.tabs[5]
+    button = next(b for b in cost_tab.get("button") if "multi-fuel forecast" in b.label.lower())
+    button.click().run(timeout=120)
+
+    assert list(at.exception) == []
+    assert list(at.tabs[5].exception) == []
+    assert len(at.tabs[5].get("dataframe")) > 0
+
+    comparisons_tab = at.tabs[4]
+    assert list(comparisons_tab.exception) == []
+    assert any("likely (kwh)" in df.value.columns.str.lower().tolist() for df in comparisons_tab.get("dataframe"))
 
 
 def test_fuel_selectbox_offers_all_three_fuels_and_switching_is_exception_free():

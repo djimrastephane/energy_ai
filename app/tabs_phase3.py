@@ -15,6 +15,7 @@ from charts_phase3 import anomaly_scatter, forecast_fan_chart, model_comparison_
 from src.anomalies import Anomaly, interpret_anomalies
 from src.energy_signature import EnergySignatureResult
 from src.forecast_evaluation import ForecastResult, generate_forecast
+from src.ingestion import EnergyType
 from src.investigation import build_investigation_checklist
 from src.utils import format_gbp
 
@@ -31,6 +32,26 @@ def generate_forecast_cached(clean: pd.DataFrame, horizon: int, model_name: str)
     """
     series = clean.set_index("month_start")["consumption_kwh"]
     return generate_forecast(series, horizon=horizon, model_name=model_name)
+
+
+@st.cache_data(show_spinner="Running the full forecast model suite for Electricity, Gas, and Total...")
+def generate_multi_fuel_forecast_cached(
+    fuel_clean_dfs: dict[EnergyType, pd.DataFrame], horizon: int = 12
+) -> dict[EnergyType, ForecastResult]:
+    """Run the same cross-validated forecast once per fuel -- opt-in (behind a button in the
+    Cost Intelligence and Comparisons tabs) since this triples the walk-forward-CV cost of the
+    single-fuel Forecasting tab. A fuel with insufficient history simply doesn't appear in the
+    result rather than failing the whole comparison.
+    """
+    results: dict[EnergyType, ForecastResult] = {}
+    for fuel, df in fuel_clean_dfs.items():
+        if df.empty:
+            continue
+        try:
+            results[fuel] = generate_forecast_cached(df, horizon, "auto")
+        except ValueError:
+            continue
+    return results
 
 
 def render_forecasting(clean: pd.DataFrame, horizon: int, model_choice: str) -> None:
