@@ -91,10 +91,13 @@ and implausible values are detected and reported on the Data Quality tab.
 
 ## Design principles
 
-- **Never invent a number.** Standing charges aren't in the exports, so no
-  £ figure pretends to include them. No solar/EV/battery recommendation
-  exists because no roof/vehicle/appliance data exists -- enforced by the
-  absence of a code path, not a runtime check.
+- **Never invent a number.** Standing charges and VAT aren't in the
+  exports, so bill totals only appeared once the user supplied the actual
+  tariff facts (62.77p/34.97p per day standing, 5% VAT, 6th-to-5th billing
+  cycle -- `config.BillingConfig`); every bill figure is labelled as the
+  estimate it is, component by component. No solar/EV/battery
+  recommendation exists because no roof/vehicle/appliance data exists --
+  enforced by the absence of a code path, not a runtime check.
 - **Evidence and confidence on everything.** Findings and recommendations
   carry their evidence lines, a High/Medium/Low rating, and the reason for
   that rating; builders return nothing rather than fabricate.

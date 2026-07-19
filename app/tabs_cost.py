@@ -10,15 +10,55 @@ import streamlit as st
 from tabs_phase3 import generate_multi_fuel_forecast_cached
 
 from src.benchmarking import compare_to_benchmark
+from src.billing import bill_breakdown_frame
 from src.cost_engine import compute_combined_cost_breakdown, forecast_bill_by_fuel
 from src.ingestion import EnergyType
+
+_BILL_FUEL_LABELS: dict[EnergyType, str] = {
+    "total": "Combined (both standing charges)",
+    "electricity": "Electricity",
+    "gas": "Gas",
+}
+
+
+def _render_bill_breakdown(fuel_clean_dfs: dict[EnergyType, pd.DataFrame]) -> None:
+    """Per-month consumption + standing + VAT = total bill, per fuel, from the user-supplied
+    tariff facts in ``config.BillingConfig`` -- estimated and labelled, never silently blended."""
+    st.subheader("Bill breakdown: consumption + standing charge + VAT")
+    st.caption(
+        "Bills run 6th to 5th (the April bill covers 6 Apr - 5 May). Standing charges "
+        "(62.77p/day electricity, 34.97p/day gas, ex VAT) and 5% VAT are estimated from your "
+        "tariff details, not read from the exports; the exported cost is treated as the "
+        "consumption charge excluding VAT (config.BillingConfig documents that assumption)."
+    )
+    available = [f for f in ("total", "electricity", "gas") if not fuel_clean_dfs.get(f, pd.DataFrame()).empty]
+    if not available:
+        return
+    fuel = st.radio(
+        "Fuel for bill breakdown",
+        available,
+        format_func=lambda f: _BILL_FUEL_LABELS[f],
+        horizontal=True,
+        key="bill_breakdown_fuel",
+    )
+    frame = bill_breakdown_frame(fuel_clean_dfs[fuel], fuel)
+    display = frame.assign(month=frame["month_start"].dt.strftime("%b %Y")).rename(
+        columns={
+            "month": "Month",
+            "billing_period": "Billing period",
+            "consumption_cost_gbp": "Consumption (£)",
+            "standing_charge_gbp": "Standing (£)",
+            "vat_gbp": "VAT 5% (£)",
+            "total_bill_gbp": "Total bill (£)",
+        }
+    )[["Month", "Billing period", "Consumption (£)", "Standing (£)", "VAT 5% (£)", "Total bill (£)"]].round(2)
+    st.dataframe(display.iloc[::-1], hide_index=True, width="stretch")
 
 
 def render_cost_intelligence(fuel_clean_dfs: dict[EnergyType, pd.DataFrame], weather_enabled: bool) -> None:
     st.caption(
-        "Standing charges aren't broken out in the OVO billing exports (only total £/month is "
-        "available), so they're omitted here rather than estimated -- the effective £/kWh rate "
-        "below still reflects your real blended cost."
+        "The OVO exports carry consumption cost only; standing charges and VAT below are "
+        "estimated from your supplied tariff details (see the bill breakdown section)."
     )
 
     breakdown = compute_combined_cost_breakdown(fuel_clean_dfs)
@@ -36,6 +76,9 @@ def render_cost_intelligence(fuel_clean_dfs: dict[EnergyType, pd.DataFrame], wea
         }
     ).round(2)
     st.dataframe(display, hide_index=True, width="stretch")
+
+    st.divider()
+    _render_bill_breakdown(fuel_clean_dfs)
 
     st.divider()
     st.subheader("Benchmark vs. published averages")

@@ -20,6 +20,8 @@ import pandas as pd
 import streamlit as st
 from tabs_month import MonthContext
 
+from config import SETTINGS
+from src.billing import standing_charge_for_months
 from src.forecast_evaluation import ForecastResult
 from src.report import NO_SAVINGS_MESSAGE, AnalystReport
 
@@ -134,6 +136,7 @@ def render_executive_briefing(
     forecast_12mo: ForecastResult | None,
     forecast_error: str | None,
     month_ctx: MonthContext,
+    fuel: str = "total",
 ) -> None:
     st.caption(
         "An evidence-based briefing, not a statistics dump -- every statement below traces to a "
@@ -168,7 +171,7 @@ def render_executive_briefing(
         st.write(NO_SAVINGS_MESSAGE)
 
     st.divider()
-    st.subheader("Forecast: expected annual energy cost (excl. standing charges)")
+    st.subheader("Forecast: expected annual energy cost")
     if forecast_error:
         st.info(f"Forecast unavailable: {forecast_error}")
     elif forecast_12mo is not None:
@@ -179,17 +182,21 @@ def render_executive_briefing(
         tooltip = (
             "From resampling the model's own past forecast errors -- bounds on what's plausible, "
             "not equally likely outcomes; values near the expected estimate are more likely. "
-            "Covers energy consumption cost only: the billing exports don't break out standing "
-            "charges, so your actual bill will be higher by that fixed daily amount."
+            "Consumption cost only; the caption below adds standing charges and VAT."
         )
         # Whole pounds: bootstrap uncertainty bands don't support penny precision.
         c1, c2, c3 = st.columns(3)
         c1.metric("Expected", f"£{expected * unit_rate:,.0f}", help=tooltip)
         c2.metric("Lower estimate", f"£{lower * unit_rate:,.0f}", help=tooltip)
         c3.metric("Upper estimate", f"£{upper * unit_rate:,.0f}", help=tooltip)
+        standing = standing_charge_for_months(list(forecast_12mo.forecast_dates), fuel)
+        vat_rate = SETTINGS.billing.vat_rate
+        total_bill = (expected * unit_rate + standing) * (1 + vat_rate)
         st.caption(
-            "Produced by the best-performing statistical model in cross-validation. "
-            "See 'What should I expect next?' for the chart, seasonal expectations, and model details."
+            f"Cards are consumption cost only. Adding ≈ £{standing:,.0f} standing charges and "
+            f"{vat_rate:.0%} VAT gives an estimated total bill of ≈ £{total_bill:,.0f} (expected "
+            "case). Produced by the best-performing statistical model in cross-validation -- see "
+            "'What should I expect next?' for the chart, seasonal expectations, and model details."
         )
     else:
         st.info("Not enough history for a cross-validated forecast yet.")

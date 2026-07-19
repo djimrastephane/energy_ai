@@ -32,10 +32,20 @@ years -- January is never compared with July. The median (not the mean)
 defines "typical" because the history is short and anomalous months
 (December 2024) would drag a mean.
 
-## Partial months
+## Billing periods and partial months
 
-A month is *complete* once the calendar has moved past it (the same
-convention as `flag_in_progress_month`). The in-progress month is:
+Bills run **6th to 5th** (`config.BillingConfig`): the row labelled April
+2026 covers 6 Apr - 5 May 2026, a period that always contains exactly
+`days_in_month(April)` days. A month is therefore *complete* only once
+the 5th of the following month has passed (`src.billing.
+is_billing_month_complete` — shared by `flag_in_progress_month` and the
+month selector), not merely once the calendar month has rolled over.
+One documented misalignment follows: the weather merge aggregates degree
+days by calendar month, ~5 days offset from the true billing window;
+re-aligning it would change the validated weather models and is
+deliberately not done.
+
+The in-progress month is:
 
 - excluded from the month selector and from same-month history,
 - announced with a notice ("July 2026 is incomplete. The primary
@@ -99,9 +109,20 @@ increase; gas use actually fell") instead of quoting a >100% share.
 
 ## Cost and carbon
 
-- Cost change is split exactly: change x comparison-month rate (usage
-  part) + rate change x current usage (price part). Standing charges are
-  not in the OVO exports, so they are never estimated.
+- The consumption-cost change is split exactly: change x comparison-month
+  rate (usage part) + rate change x current usage (price part).
+- Full bills are estimated as **consumption cost + standing charge + 5%
+  VAT** (`src.billing`), using the user-supplied tariff facts in
+  `config.BillingConfig`: 62.77 p/day electricity and 34.97 p/day gas
+  standing charges (the combined view pays both), VAT applied to
+  consumption + standing. The exported cost is treated as the consumption
+  charge *excluding* VAT — an assumption documented in the config
+  docstring, with a flag (`export_cost_includes_vat`) to back VAT out
+  instead if a bill cross-check shows otherwise.
+- Standing charges are near-identical for the same calendar month across
+  years (same day count, leap February aside), so they rarely explain a
+  year-on-year change — the narrative says so rather than letting the
+  bill total imply it.
 - Carbon compares the same months per fuel using the static cited
   factors in `config.CarbonConfig`; estimates are labelled rough.
 

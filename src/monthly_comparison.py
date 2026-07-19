@@ -23,6 +23,7 @@ from typing import Literal
 import pandas as pd
 
 from config import SETTINGS, MonthComparisonThresholds
+from src.billing import is_billing_month_complete
 from src.confidence import Confidence
 from src.energy_signature import EnergySignatureResult
 from src.ingestion import EnergyType
@@ -110,14 +111,15 @@ class MonthlyComparison:
 
 
 def is_month_complete(month: pd.Timestamp, today: pd.Timestamp | None = None) -> bool:
-    """A month is complete once the calendar has moved past it.
+    """A month is complete once its *billing period* has fully elapsed.
 
-    Same convention as ``src.preprocessing.flag_in_progress_month``: only the
-    current calendar month can be month-to-date; anything earlier is a full
-    billing month.
+    The exports follow a 6th-to-5th billing cycle (``config.BillingConfig``):
+    the June 2026 row covers 6 Jun - 5 Jul, so June is only complete from
+    6 July onward -- not from 1 July, as a calendar-month reading would
+    assume. Delegates to ``src.billing.is_billing_month_complete``, the
+    single source of truth ``src.preprocessing`` shares.
     """
-    today = today if today is not None else pd.Timestamp.now()
-    return month.to_period("M") < today.to_period("M")
+    return is_billing_month_complete(month, today)
 
 
 def latest_complete_month(clean_df: pd.DataFrame, today: pd.Timestamp | None = None) -> pd.Timestamp | None:

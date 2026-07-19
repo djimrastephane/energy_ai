@@ -25,6 +25,7 @@ from charts_month import same_month_history_bar, two_month_grouped_bar
 
 from config import SETTINGS
 from src.anomalies import Anomaly
+from src.billing import bill_breakdown
 from src.energy_signature import EnergySignatureResult
 from src.ingestion import EnergyType
 from src.kpis import compute_kpis
@@ -269,26 +270,55 @@ def _render_costs_and_carbon(ctx: MonthContext) -> None:
         return
     st.subheader("Cost")
     comparison_label = _comparison_label(featured)
-    cols = st.columns(3)
-    cols[0].metric(
-        f"{featured.selected_month.strftime('%B %Y')} energy cost",
-        format_gbp(featured.current_cost_gbp),
-        help="Consumption cost only -- the billing exports don't include standing charges.",
+
+    current_bill = bill_breakdown(featured.selected_month, featured.current_cost_gbp, ctx.fuel)
+    comparison_bill = (
+        bill_breakdown(featured.comparison_month, featured.comparison_cost_gbp, ctx.fuel)
+        if featured.comparison_month is not None and featured.comparison_cost_gbp is not None
+        else None
     )
-    if featured.comparison_cost_gbp is not None:
-        cols[1].metric(f"{comparison_label} energy cost", format_gbp(featured.comparison_cost_gbp))
-    if featured.cost_change_gbp is not None:
-        sign = "+" if featured.cost_change_gbp >= 0 else "-"
-        cols[2].metric("Change", f"{sign}{format_gbp(abs(featured.cost_change_gbp))}")
+
+    period_label = (
+        f"{current_bill.billing_period_start.strftime('%d %b')} - "
+        f"{current_bill.billing_period_end.strftime('%d %b %Y')}"
+    )
+    cols = st.columns(4)
+    cols[0].metric(
+        "Consumption cost",
+        format_gbp(current_bill.consumption_cost_gbp),
+        help=f"From the billing export, excluding VAT. Billing period: {period_label}.",
+    )
+    cols[1].metric(
+        "Standing charge",
+        format_gbp(current_bill.standing_charge_gbp),
+        help=(
+            f"{current_bill.days_in_period} days x the daily rate(s) in config "
+            "(62.77p electricity, 34.97p gas, ex VAT); the combined view pays both."
+        ),
+    )
+    cols[2].metric("VAT (5%)", format_gbp(current_bill.vat_gbp))
+    delta = None
+    if comparison_bill is not None:
+        bill_change = current_bill.total_bill_gbp - comparison_bill.total_bill_gbp
+        sign = "+" if bill_change >= 0 else "-"
+        delta = f"{sign}{format_gbp(abs(bill_change))} vs {comparison_label}"
+    cols[3].metric("Estimated total bill", format_gbp(current_bill.total_bill_gbp), delta, delta_color="off")
+
     if featured.cost_change_from_usage_gbp is not None and featured.cost_change_from_rate_gbp is not None:
         usage_part = featured.cost_change_from_usage_gbp
         rate_part = featured.cost_change_from_rate_gbp
         st.caption(
-            f"Of that change, {'+' if usage_part >= 0 else '-'}{format_gbp(abs(usage_part))} came from "
-            f"using more or less energy, and {'+' if rate_part >= 0 else '-'}{format_gbp(abs(rate_part))} "
-            "from a different effective price per kWh. Standing charges are not included -- they "
-            "aren't in the billing exports."
+            f"Of the consumption-cost change vs {comparison_label}, "
+            f"{'+' if usage_part >= 0 else '-'}{format_gbp(abs(usage_part))} came from using more or "
+            f"less energy and {'+' if rate_part >= 0 else '-'}{format_gbp(abs(rate_part))} from a "
+            "different effective price per kWh. Standing charges are near-identical for the same "
+            "calendar month, so they rarely explain a year-on-year change."
         )
+    st.caption(
+        f"Bill covers the {period_label} billing period (bills run 6th to 5th). Standing charges "
+        "and VAT are estimated from your supplied tariff rates, not read from the exports; the "
+        "exported cost is treated as excluding VAT (see config.BillingConfig to flip that)."
+    )
 
     elec = ctx.comparisons.get("electricity")
     gas = ctx.comparisons.get("gas")

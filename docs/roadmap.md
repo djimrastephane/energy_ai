@@ -381,6 +381,36 @@ month last year" (see `docs/month_comparison.md` and
   < 500 ms); cold render 5.1 s and sidebar fuel switch 3.5 s, both
   marginally better than baseline. 448 tests (from 378), coverage 94%.
 
+## Billing facts: standing charges, VAT, 6th-to-5th cycle (2026-07)
+
+User-supplied tariff facts (`config.BillingConfig`) finally allow honest
+full-bill estimates, ending the "consumption cost only" limitation:
+
+- `src/billing.py`: billing periods (the April bill covers 6 Apr - 5 May,
+  always exactly `days_in_month` days), per-fuel standing charges
+  (62.77p/34.97p per day; the combined view pays both), 5% VAT on
+  consumption + standing, and a per-month `bill_breakdown` /
+  `bill_breakdown_frame`. The exported cost is treated as ex-VAT
+  consumption charge -- a documented assumption with an
+  `export_cost_includes_vat` flag to flip it.
+- Completeness became billing-aware: a month's bill is only complete once
+  the 5th of the *next* month has passed. `is_month_complete` (month
+  journey) and `flag_in_progress_month` (data quality) now share
+  `src.billing.is_billing_month_complete`; on the 1st-5th of a month the
+  previous month correctly stays "period-to-date" where the old
+  calendar-month rule called it closed.
+- Surfaced: month-comparison page cost section (Consumption + Standing +
+  VAT = Estimated total bill, with the billing-period dates), a per-fuel
+  bill-breakdown table on Cost Intelligence, total-bill estimates on the
+  forecast tab and Home forecast caption, and the Consultant's "Why was
+  this month expensive?" now itemizes the full bill.
+- Documented misalignment (not silently ignored): the weather merge is
+  calendar-month based, ~5 days offset from the billing window;
+  re-aligning would change the validated weather models and is deferred.
+- Real-data check: June 2026 electricity £41.37 + £18.83 + £3.01 =
+  £63.21; elec + gas component bills sum exactly to the combined bill
+  (£81.38). 461 tests (from 448).
+
 ## Phase 5 -- explainability
 
 - Feature importance / SHAP for the regression and ML forecast models.

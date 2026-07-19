@@ -103,10 +103,17 @@ def test_app_renders_without_exceptions():
     assert list(comparisons.exception) == []
     assert any("turn on" in info.value.lower() for info in comparisons.get("info"))
 
-    # Costs: combined cost breakdown and benchmark bands render without any button click.
+    # Costs: combined cost breakdown, the consumption+standing+VAT bill table, and
+    # benchmark bands all render without any button click.
     costs = _tab(at, "Costs")
     assert list(costs.exception) == []
-    assert len(costs.get("dataframe")) > 0
+    assert len(costs.get("dataframe")) >= 2  # cost breakdown + bill breakdown tables
+    assert any("bill breakdown" in s.value.lower() for s in costs.get("subheader"))
+    bill_tables = [df for df in costs.get("dataframe") if "Total bill (£)" in df.value.columns]
+    assert len(bill_tables) == 1
+    assert {"Consumption (£)", "Standing (£)", "VAT 5% (£)", "Billing period"} <= set(
+        bill_tables[0].value.columns
+    )
     assert any("vs." in m.label for m in costs.get("metric"))
 
     # Carbon: real data has both fuels, so real emissions numbers.
@@ -156,10 +163,14 @@ def test_month_tab_defaults_to_latest_complete_month_vs_last_year():
     assert list(month_tab.exception) == []
 
     month_select = next(sb for sb in month_tab.get("selectbox") if sb.label == "Month")
-    latest_complete = (pd.Timestamp.now().to_period("M") - 1).to_timestamp()
+    # Bills run 6th-to-5th, so last month's bill is only complete from the 6th of this
+    # month -- on the 1st-5th the default falls back one month further.
+    today = pd.Timestamp.now()
+    months_back = 1 if today.day >= 6 else 2
+    latest_complete = (today.to_period("M") - months_back).to_timestamp()
     assert month_select.value == latest_complete
-    # The in-progress current month must not be selectable.
-    assert pd.Timestamp.now().to_period("M").to_timestamp() not in month_select.options
+    # A month whose billing period is still open must not be selectable.
+    assert today.to_period("M").to_timestamp() not in month_select.options
 
     mode_select = next(sb for sb in month_tab.get("selectbox") if sb.label == "Compare against")
     assert mode_select.value == "same_month_last_year"
@@ -178,6 +189,12 @@ def test_month_tab_defaults_to_latest_complete_month_vs_last_year():
     md_text = " ".join(md.value for md in month_tab.get("markdown"))
     assert "**What changed:**" in md_text
     assert "**Which fuel caused it:**" in md_text
+
+    # Cost section: the full bill breakdown (consumption + standing + VAT = total).
+    cost_metric_labels = [m.label for m in month_tab.get("metric")]
+    for label in ("Consumption cost", "Standing charge", "VAT (5%)", "Estimated total bill"):
+        assert label in cost_metric_labels
+    assert any("bills run 6th to 5th" in c.value.lower() for c in month_tab.get("caption"))
 
 
 def test_month_tab_mode_switching_updates_content_and_state():
