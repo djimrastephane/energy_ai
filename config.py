@@ -154,6 +154,37 @@ class CarbonConfig:
 
 
 @dataclass(frozen=True)
+class BillingConfig:
+    """Tariff facts supplied by the user (July 2026) for full-bill estimates
+    (``src.billing``): standing charges, VAT, and the billing cycle.
+
+    - Standing charges: 62.77 p/day electricity, 34.97 p/day gas.
+    - VAT: 5% (the UK domestic-energy rate), applied to consumption cost +
+      standing charge.
+    - Billing cycle: each monthly export row labelled month M covers the
+      6th of M to the 5th of M+1 inclusive (the April 2026 bill runs
+      6 Apr - 5 May 2026). That period always contains exactly
+      ``days_in_month(M)`` days, and it means a month's bill is not
+      complete until the 5th of the *following* month has passed.
+
+    ``export_cost_includes_vat``: the OVO export's ``Cost (£)`` column is
+    treated as the consumption charge *excluding* VAT, matching the
+    user-specified breakdown (consumption cost + standing cost + VAT).
+    The observed unit rates (~25.2 p/kWh electricity, ~5.7 p/kWh gas in
+    mid-2026) are plausible under either reading, so this is an assumption,
+    not a verified fact -- flip this flag if a bill cross-check shows the
+    export already includes VAT, and ``src.billing`` will back it out
+    instead of adding it twice.
+    """
+
+    electricity_standing_gbp_per_day: float = 0.6277
+    gas_standing_gbp_per_day: float = 0.3497
+    vat_rate: float = 0.05
+    billing_cycle_start_day: int = 6
+    export_cost_includes_vat: bool = False
+
+
+@dataclass(frozen=True)
 class MonthComparisonThresholds:
     """Practical-significance thresholds for the month-comparison journey
     (``src.monthly_comparison`` / ``src.monthly_narrative``).
@@ -200,6 +231,7 @@ class Settings:
     benchmark: BenchmarkConfig = field(default_factory=BenchmarkConfig)
     carbon: CarbonConfig = field(default_factory=CarbonConfig)
     month_comparison: MonthComparisonThresholds = field(default_factory=MonthComparisonThresholds)
+    billing: BillingConfig = field(default_factory=BillingConfig)
 
 
 SETTINGS = Settings()
