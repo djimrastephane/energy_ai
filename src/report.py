@@ -65,10 +65,10 @@ def _overall_assessment(pct_change: float | None, data_quality_rating: Confidenc
     if pct_change is None:
         return "Not enough history yet for a year-on-year assessment."
     if abs(pct_change) < 5:
-        return "Consumption is running at normal, expected levels compared to a year ago."
+        return "Over the last 12 months you used about the same energy as the year before."
     if pct_change > 0:
-        return f"Consumption is higher than expected, up {pct_change:.0f}% on the prior 12 months."
-    return f"Consumption is lower than expected, down {abs(pct_change):.0f}% on the prior 12 months."
+        return f"Over the last 12 months you used {pct_change:.0f}% more energy than the year before."
+    return f"Over the last 12 months you used {abs(pct_change):.0f}% less energy than the year before."
 
 
 def _limitations(

@@ -154,6 +154,38 @@ class CarbonConfig:
 
 
 @dataclass(frozen=True)
+class MonthComparisonThresholds:
+    """Practical-significance thresholds for the month-comparison journey
+    (``src.monthly_comparison`` / ``src.monthly_narrative``).
+
+    These are *practical* materiality bands, not statistical significance --
+    monthly billing data at n~35 doesn't support a formal test of a single
+    month's change, and the narratives never claim one. Rationale:
+
+    - ``little_change_pct``: below 5% a monthly billing figure is within
+      ordinary meter-read/billing-calendar noise (OVO bills whole months but
+      read dates wobble); calling it "little change" avoids narrating noise.
+    - ``large_change_pct``: 20%+ of a month's usage is unmistakably material
+      on a household bill; between the two bounds is "moderate".
+    - ``min_same_month_observations``: with only one prior observation of a
+      calendar month there is no distribution to call "typical"; two or more
+      prior observations are required before typical/best/worst modes claim
+      anything, and even then confidence is capped at Medium below four.
+    - ``meaningful_residual_z``: a single month's weather-unexplained gap is
+      called meaningful only beyond 1.645 residual standard deviations
+      (one-sided 95% normal approximation) -- the same convention
+      ``src.energy_signature`` and ``src.recommendations`` already use for
+      annual and winter residuals.
+    """
+
+    little_change_pct: float = 5.0
+    large_change_pct: float = 20.0
+    min_same_month_observations: int = 2
+    solid_same_month_observations: int = 4
+    meaningful_residual_z: float = 1.645
+
+
+@dataclass(frozen=True)
 class Settings:
     project_root: Path = PROJECT_ROOT
     raw_data_dir: Path = RAW_DATA_DIR
@@ -167,6 +199,7 @@ class Settings:
     weather_context: WeatherContextThresholds = field(default_factory=WeatherContextThresholds)
     benchmark: BenchmarkConfig = field(default_factory=BenchmarkConfig)
     carbon: CarbonConfig = field(default_factory=CarbonConfig)
+    month_comparison: MonthComparisonThresholds = field(default_factory=MonthComparisonThresholds)
 
 
 SETTINGS = Settings()

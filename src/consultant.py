@@ -62,6 +62,15 @@ class ConsultantContext:
     # Weather-context interpretations for the selected fuel's flagged months, keyed by
     # month_start -- built in main() when weather adjustment is on, None otherwise.
     weather_interpretations: dict[pd.Timestamp, UnusualMonthInterpretation] | None = None
+    # The month-comparison selection currently shown on "How did this month compare?" --
+    # mirrored from the same session state that page renders, so month-comparison answers
+    # (src.consultant_month) always describe what the user is looking at, never stale state.
+    selected_comparison_month: pd.Timestamp | None = None
+    comparison_mode: str = "same_month_last_year"  # a ComparisonMode, or "long_term"
+    comparison_fuel: EnergyType = "total"
+    # Per-fuel merged consumption+weather frames (needed to split a month's change into
+    # weather-explained and unexplained parts); None when weather is off.
+    fuel_merged: dict[EnergyType, pd.DataFrame | None] | None = None
 
 
 def answer_bill_change(ctx: ConsultantContext) -> ConsultantAnswer:
