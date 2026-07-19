@@ -4,10 +4,12 @@ under the ~300-line guideline as Phase 4 adds more tabs.
 
 from __future__ import annotations
 
+import dataclasses
+
 import pandas as pd
 import streamlit as st
 
-from config import SETTINGS
+from config import SETTINGS, BillingConfig
 from src.forecast_evaluation import MODEL_REGISTRY
 from src.fuel import cross_check_fuel_totals
 from src.ingestion import FUEL_FILE_PATTERNS, discover_csv_files, filter_sources_by_fuel, load_all
@@ -61,6 +63,7 @@ def render_sidebar() -> tuple[
     str,
     dict[str, pd.DataFrame],
     list[str] | None,
+    BillingConfig,
 ]:
     st.sidebar.title("Controls")
     st.sidebar.subheader("Data")
@@ -112,6 +115,44 @@ def render_sidebar() -> tuple[
     selected_years = st.sidebar.multiselect("Years to include", years, default=years)
 
     st.sidebar.divider()
+    st.sidebar.subheader("Tariff")
+    electricity_standing_p = st.sidebar.number_input(
+        "Electricity standing charge (p/day)",
+        min_value=0.0,
+        max_value=200.0,
+        value=SETTINGS.billing.electricity_standing_gbp_per_day * 100,
+        step=0.01,
+        format="%.2f",
+    )
+    gas_standing_p = st.sidebar.number_input(
+        "Gas standing charge (p/day)",
+        min_value=0.0,
+        max_value=200.0,
+        value=SETTINGS.billing.gas_standing_gbp_per_day * 100,
+        step=0.01,
+        format="%.2f",
+    )
+    vat_pct = st.sidebar.number_input(
+        "VAT rate (%)",
+        min_value=0.0,
+        max_value=30.0,
+        value=SETTINGS.billing.vat_rate * 100,
+        step=0.5,
+        format="%.1f",
+    )
+    billing_config = dataclasses.replace(
+        SETTINGS.billing,
+        electricity_standing_gbp_per_day=electricity_standing_p / 100,
+        gas_standing_gbp_per_day=gas_standing_p / 100,
+        vat_rate=vat_pct / 100,
+    )
+    st.sidebar.caption(
+        "Defaults are this household's OVO tariff (July 2026) -- adjust if your provider "
+        "charges differently. Used everywhere a full bill is estimated (consumption + "
+        "standing charge + VAT); the exports themselves carry consumption cost only."
+    )
+
+    st.sidebar.divider()
     st.sidebar.subheader("Weather")
     weather_enabled = st.sidebar.toggle("Weather adjustment", value=False)
     st.sidebar.caption(
@@ -140,4 +181,5 @@ def render_sidebar() -> tuple[
         _FUEL_DISPLAY[fuel],
         fuel_frames,
         fuel_cross_check_warnings,
+        billing_config,
     )

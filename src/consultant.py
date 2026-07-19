@@ -18,7 +18,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-from config import SETTINGS
+from config import SETTINGS, BillingConfig
 from src.anomalies import Anomaly
 from src.benchmarking import compare_to_benchmark
 from src.carbon import combined_annual_emissions
@@ -71,6 +71,9 @@ class ConsultantContext:
     # Per-fuel merged consumption+weather frames (needed to split a month's change into
     # weather-explained and unexplained parts); None when weather is off.
     fuel_merged: dict[EnergyType, pd.DataFrame | None] | None = None
+    # The sidebar's Tariff settings (standing charges, VAT) for full-bill estimates;
+    # None falls back to the config defaults.
+    billing_config: BillingConfig | None = None
 
 
 def answer_bill_change(ctx: ConsultantContext) -> ConsultantAnswer:

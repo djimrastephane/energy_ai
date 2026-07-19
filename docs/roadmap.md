@@ -410,6 +410,12 @@ full-bill estimates, ending the "consumption cost only" limitation:
 - Real-data check: June 2026 electricity £41.37 + £18.83 + £3.01 =
   £63.21; elec + gas component bills sum exactly to the combined bill
   (£81.38). 461 tests (from 448).
+- Follow-up: the tariff rates became editable in-app (sidebar "Tariff"
+  section -- standing charges in p/day, VAT in %) with the supplied OVO
+  figures as defaults, threaded as a runtime ``BillingConfig`` through
+  every bill-estimating surface (month page, Cost Intelligence, forecast
+  captions, Consultant) so another provider's rates work without code
+  changes. 462 tests.
 
 ## Phase 5 -- explainability
 

@@ -301,6 +301,40 @@ def test_consultant_free_text_routes_to_month_comparison():
     assert "did i use more energy than usual this month?" in answer_text
 
 
+def test_tariff_inputs_drive_bill_estimates():
+    """Changing the sidebar's Tariff inputs must flow through to the bill breakdown --
+    the defaults are this household's OVO rates, but another provider's rates work too."""
+    at = AppTest.from_file(str(APP_PATH))
+    at.run(timeout=60)
+
+    inputs = {n.label: n for n in at.sidebar.get("number_input")}
+    assert inputs["Electricity standing charge (p/day)"].value == 62.77
+    assert inputs["Gas standing charge (p/day)"].value == 34.97
+    assert inputs["VAT rate (%)"].value == 5.0
+
+    month_tab = _tab(at, "How did this month compare?")
+    standing_before = next(m for m in month_tab.get("metric") if m.label == "Standing charge").value
+
+    inputs["Electricity standing charge (p/day)"].set_value(100.0)
+    inputs["VAT rate (%)"].set_value(20.0).run(timeout=60)
+    assert list(at.exception) == []
+
+    month_tab = _tab(at, "How did this month compare?")
+    metric_labels = [m.label for m in month_tab.get("metric")]
+    assert "VAT (20%)" in metric_labels  # label follows the input
+    standing_after = next(m for m in month_tab.get("metric") if m.label == "Standing charge").value
+    assert standing_after != standing_before
+    # Default fuel is combined, so both daily rates apply across the billing period's days
+    # (which always equal the labelled month's day count).
+    selected = next(sb for sb in month_tab.get("selectbox") if sb.label == "Month").value
+    expected_standing = (1.0 + 0.3497) * selected.days_in_month
+    assert standing_after == f"£{expected_standing:,.2f}"
+
+    costs = _tab(at, "Costs")
+    bill_tables = [df for df in costs.get("dataframe") if "Total bill (£)" in df.value.columns]
+    assert any("VAT 20% (£)" in df.value.columns for df in bill_tables)
+
+
 # --- consultant regression tests (pre-existing behaviour) ---------------------------------
 
 

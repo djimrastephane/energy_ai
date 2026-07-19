@@ -13,7 +13,7 @@ import streamlit as st
 from charts_phase3 import anomaly_scatter, forecast_fan_chart, model_comparison_bar
 from tabs_weather_context import render_severe_weather_sections
 
-from config import SETTINGS
+from config import SETTINGS, BillingConfig
 from src.anomalies import Anomaly, interpret_anomalies
 from src.billing import standing_charge_for_months
 from src.confidence import rate_forecast
@@ -80,8 +80,13 @@ def _seasonal_expectation(result: ForecastResult, month_nums: set[int]) -> float
 
 
 def render_forecasting(
-    clean: pd.DataFrame, horizon: int, model_choice: str, fuel: EnergyType = "total"
+    clean: pd.DataFrame,
+    horizon: int,
+    model_choice: str,
+    fuel: EnergyType = "total",
+    billing_config: BillingConfig | None = None,
 ) -> None:
+    billing_config = billing_config or SETTINGS.billing
     model_name = "auto" if model_choice == "Auto (best by CV)" else model_choice
 
     try:
@@ -118,8 +123,8 @@ def render_forecasting(
         rating.level,
         help=rating.reason,
     )
-    standing = standing_charge_for_months(list(result.forecast_dates), fuel)
-    vat_rate = SETTINGS.billing.vat_rate
+    standing = standing_charge_for_months(list(result.forecast_dates), fuel, billing_config)
+    vat_rate = billing_config.vat_rate
     total_bill = (expected_kwh * unit_rate + standing) * (1 + vat_rate)
     st.caption(
         f"≈ £{expected_kwh * unit_rate:,.0f} consumption at your average rate, plus "

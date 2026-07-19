@@ -20,7 +20,7 @@ import pandas as pd
 import streamlit as st
 from tabs_month import MonthContext
 
-from config import SETTINGS
+from config import SETTINGS, BillingConfig
 from src.billing import standing_charge_for_months
 from src.forecast_evaluation import ForecastResult
 from src.report import NO_SAVINGS_MESSAGE, AnalystReport
@@ -137,7 +137,9 @@ def render_executive_briefing(
     forecast_error: str | None,
     month_ctx: MonthContext,
     fuel: str = "total",
+    billing_config: BillingConfig | None = None,
 ) -> None:
+    billing_config = billing_config or SETTINGS.billing
     st.caption(
         "An evidence-based briefing, not a statistics dump -- every statement below traces to a "
         "specific number computed elsewhere in the app. The full report with evidence and "
@@ -189,8 +191,8 @@ def render_executive_briefing(
         c1.metric("Expected", f"£{expected * unit_rate:,.0f}", help=tooltip)
         c2.metric("Lower estimate", f"£{lower * unit_rate:,.0f}", help=tooltip)
         c3.metric("Upper estimate", f"£{upper * unit_rate:,.0f}", help=tooltip)
-        standing = standing_charge_for_months(list(forecast_12mo.forecast_dates), fuel)
-        vat_rate = SETTINGS.billing.vat_rate
+        standing = standing_charge_for_months(list(forecast_12mo.forecast_dates), fuel, billing_config)
+        vat_rate = billing_config.vat_rate
         total_bill = (expected * unit_rate + standing) * (1 + vat_rate)
         st.caption(
             f"Cards are consumption cost only. Adding ≈ £{standing:,.0f} standing charges and "

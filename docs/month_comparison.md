@@ -111,10 +111,12 @@ increase; gas use actually fell") instead of quoting a >100% share.
 
 - The consumption-cost change is split exactly: change x comparison-month
   rate (usage part) + rate change x current usage (price part).
-- Full bills are estimated as **consumption cost + standing charge + 5%
-  VAT** (`src.billing`), using the user-supplied tariff facts in
-  `config.BillingConfig`: 62.77 p/day electricity and 34.97 p/day gas
-  standing charges (the combined view pays both), VAT applied to
+- Full bills are estimated as **consumption cost + standing charge +
+  VAT** (`src.billing`). The rates live in the sidebar's **Tariff**
+  section, defaulting to this household's supplied facts
+  (`config.BillingConfig`: 62.77 p/day electricity and 34.97 p/day gas
+  standing charges, 5% VAT) and editable in-app for other providers;
+  the combined view pays both standing charges, and VAT applies to
   consumption + standing. The exported cost is treated as the consumption
   charge *excluding* VAT — an assumption documented in the config
   docstring, with a flag (`export_cost_includes_vat`) to back VAT out
