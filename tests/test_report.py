@@ -7,7 +7,7 @@ from src.anomalies import detect_anomalies
 from src.changepoints import detect_changepoints
 from src.confidence import ConfidenceRating
 from src.decomposition import stl_decompose
-from src.energy_signature import fit_energy_signature
+from src.energy_signature import EnergySignatureResult, fit_energy_signature
 from src.forecast_evaluation import generate_forecast
 from src.ingestion import FUEL_FILE_PATTERNS, discover_csv_files, load_all
 from src.preprocessing import PreprocessingReport, run_pipeline
@@ -73,6 +73,42 @@ def test_limitations_flags_short_history():
 def test_limitations_flags_missing_months():
     items = _limitations(n_months=36, report=_report(missing=[pd.Timestamp("2024-05-01")]), energy_result=None, anomalies=[])
     assert any("missing from the billing data" in item for item in items)
+
+
+def _energy_result(cooling_pvalue) -> EnergySignatureResult:
+    return EnergySignatureResult(
+        intercept=1.5,
+        intercept_se=0.2,
+        heating_slope=1.6,
+        heating_se=0.1,
+        heating_pvalue=0.001,
+        cooling_slope=0.0,
+        cooling_se=float("nan"),
+        cooling_pvalue=cooling_pvalue,
+        r_squared=0.73,
+        adj_r_squared=0.72,
+        durbin_watson=2.0,
+        n_obs=34,
+        fitted=pd.Series(dtype=float),
+        resid=pd.Series(dtype=float),
+    )
+
+
+def test_limitations_notes_no_cooling_load_when_cdd_inestimable():
+    """Zero-variance CDD (a no-air-conditioning home in a cool climate, e.g. Aberdeen) makes
+    the regression report cooling as inestimable (NaN p-value) -- the Limitations section must
+    state that explicitly rather than leaving the absence of cooling analysis unexplained."""
+    items = _limitations(
+        n_months=36, report=_report(), energy_result=_energy_result(float("nan")), anomalies=[]
+    )
+    assert any("without air conditioning" in item for item in items)
+
+
+def test_limitations_no_cooling_note_when_cooling_was_estimable():
+    items = _limitations(
+        n_months=36, report=_report(), energy_result=_energy_result(0.02), anomalies=[]
+    )
+    assert not any("air conditioning" in item for item in items)
 
 
 def test_monitoring_priorities_fallback_when_everything_high():
