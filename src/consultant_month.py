@@ -16,6 +16,7 @@ only when supported, confidence and limitation.
 
 from __future__ import annotations
 
+from config import SETTINGS
 from src.billing import bill_breakdown
 from src.consultant import ConsultantAnswer, ConsultantContext
 from src.ingestion import EnergyType
@@ -279,7 +280,7 @@ def answer_why_expensive(ctx: ConsultantContext) -> ConsultantAnswer:
     )
     direction = "more" if comparison.cost_change_gbp >= 0 else "less"
     current_bill = bill_breakdown(
-        comparison.selected_month, comparison.current_cost_gbp, comparison.fuel
+        comparison.selected_month, comparison.current_cost_gbp, comparison.fuel, ctx.billing_config
     )
     parts = [
         f"{comparison.selected_month.strftime('%B %Y')} cost "
@@ -296,7 +297,7 @@ def answer_why_expensive(ctx: ConsultantContext) -> ConsultantAnswer:
         f"Standing charge ({current_bill.days_in_period} days, "
         f"{current_bill.billing_period_start.strftime('%d %b')} - "
         f"{current_bill.billing_period_end.strftime('%d %b')}): {format_gbp(current_bill.standing_charge_gbp)}",
-        f"VAT at 5%: {format_gbp(current_bill.vat_gbp)}",
+        f"VAT at {(ctx.billing_config or SETTINGS.billing).vat_rate:.0%}: {format_gbp(current_bill.vat_gbp)}",
     ]
     if comparison.cost_change_from_usage_gbp is not None:
         usage, rate = comparison.cost_change_from_usage_gbp, comparison.cost_change_from_rate_gbp

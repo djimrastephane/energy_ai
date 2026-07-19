@@ -23,7 +23,7 @@ import streamlit as st
 from charts import year_over_year_overlay
 from charts_month import same_month_history_bar, two_month_grouped_bar
 
-from config import SETTINGS
+from config import SETTINGS, BillingConfig
 from src.anomalies import Anomaly
 from src.billing import bill_breakdown
 from src.energy_signature import EnergySignatureResult
@@ -77,6 +77,7 @@ class MonthContext:
     mtd_month: pd.Timestamp | None
     selectable: list[pd.Timestamp]
     weather_enabled: bool
+    billing: BillingConfig
 
 
 def build_month_context(
@@ -85,6 +86,7 @@ def build_month_context(
     fuel_energy_results: dict[EnergyType, EnergySignatureResult | None],
     weather_enabled: bool,
     today: pd.Timestamp | None = None,
+    billing_config: BillingConfig | None = None,
 ) -> MonthContext:
     """Resolve the shared month/fuel/mode state and build all per-fuel comparisons.
 
@@ -162,6 +164,7 @@ def build_month_context(
         mtd_month=partial,
         selectable=months,
         weather_enabled=weather_enabled,
+        billing=billing_config if billing_config is not None else SETTINGS.billing,
     )
 
 
@@ -271,9 +274,9 @@ def _render_costs_and_carbon(ctx: MonthContext) -> None:
     st.subheader("Cost")
     comparison_label = _comparison_label(featured)
 
-    current_bill = bill_breakdown(featured.selected_month, featured.current_cost_gbp, ctx.fuel)
+    current_bill = bill_breakdown(featured.selected_month, featured.current_cost_gbp, ctx.fuel, ctx.billing)
     comparison_bill = (
-        bill_breakdown(featured.comparison_month, featured.comparison_cost_gbp, ctx.fuel)
+        bill_breakdown(featured.comparison_month, featured.comparison_cost_gbp, ctx.fuel, ctx.billing)
         if featured.comparison_month is not None and featured.comparison_cost_gbp is not None
         else None
     )
@@ -292,11 +295,13 @@ def _render_costs_and_carbon(ctx: MonthContext) -> None:
         "Standing charge",
         format_gbp(current_bill.standing_charge_gbp),
         help=(
-            f"{current_bill.days_in_period} days x the daily rate(s) in config "
-            "(62.77p electricity, 34.97p gas, ex VAT); the combined view pays both."
+            f"{current_bill.days_in_period} days x the daily rate(s) from the sidebar's Tariff "
+            f"section ({ctx.billing.electricity_standing_gbp_per_day * 100:.2f}p electricity, "
+            f"{ctx.billing.gas_standing_gbp_per_day * 100:.2f}p gas, ex VAT); the combined view "
+            "pays both."
         ),
     )
-    cols[2].metric("VAT (5%)", format_gbp(current_bill.vat_gbp))
+    cols[2].metric(f"VAT ({ctx.billing.vat_rate:.0%})", format_gbp(current_bill.vat_gbp))
     delta = None
     if comparison_bill is not None:
         bill_change = current_bill.total_bill_gbp - comparison_bill.total_bill_gbp
@@ -316,8 +321,9 @@ def _render_costs_and_carbon(ctx: MonthContext) -> None:
         )
     st.caption(
         f"Bill covers the {period_label} billing period (bills run 6th to 5th). Standing charges "
-        "and VAT are estimated from your supplied tariff rates, not read from the exports; the "
-        "exported cost is treated as excluding VAT (see config.BillingConfig to flip that)."
+        "and VAT are estimated from the rates in the sidebar's Tariff section, not read from the "
+        "exports; the exported cost is treated as excluding VAT (see config.BillingConfig to "
+        "flip that)."
     )
 
     elec = ctx.comparisons.get("electricity")
