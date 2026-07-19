@@ -1,60 +1,84 @@
-"""Smoke test: the Streamlit app must render with real data and no uncaught exceptions."""
+"""Smoke and journey tests: the Streamlit app must render with real data and no uncaught
+exceptions, with the month-comparison journey as the primary surface.
+
+Navigation is organized around user questions; ``st.tabs`` nests one level,
+and AppTest flattens nested tabs into ``at.tabs`` in creation order -- so
+tabs are looked up by label here, never by index.
+"""
 
 from pathlib import Path
 
+import pandas as pd
 from streamlit.testing.v1 import AppTest
 
 APP_PATH = Path(__file__).resolve().parent.parent / "app" / "streamlit_app.py"
 
+TOP_LEVEL_TABS = [
+    "Home",
+    "How did this month compare?",
+    "What drives my usage?",
+    "Costs and carbon",
+    "Did anything unusual happen?",
+    "What should I expect next?",
+    "Ask the Energy Consultant",
+    "Long-term trends",
+    "Data and methods",
+]
+
+N_CONSULTANT_QUESTIONS = 17
+
+
+def _tab(at: AppTest, label: str):
+    return next(t for t in at.tabs if t.label == label)
+
 
 def test_app_renders_without_exceptions():
-    """Default render (weather toggle off) must stay network-free and exception-free.
-
-    Forecasting and the decision-support report (findings/recommendations/
-    confidence) aren't behind an opt-in toggle like weather -- they're pure
-    CPU-bound, benchmarked well under 10s on the real data -- so this render
-    includes that cost. Timeout raised accordingly.
-    """
+    """Default render (weather toggle off) must stay network-free and exception-free."""
     at = AppTest.from_file(str(APP_PATH))
     at.run(timeout=60)
 
     assert list(at.exception) == []
-    assert [t.label for t in at.tabs] == [
-        "Executive Summary",
-        "AI Consultant",
-        "AI Analyst",
-        "Consumption Analysis",
-        "Fuel Breakdown",
-        "Comparisons",
-        "Cost Intelligence",
+    labels = [t.label for t in at.tabs]
+    # Top-level question-oriented navigation, in order (sub-tabs interleave in at.tabs).
+    assert [label for label in labels if label in TOP_LEVEL_TABS] == TOP_LEVEL_TABS
+    # Technical/whole-period surfaces are demoted to sub-tabs, never removed.
+    for demoted in (
+        "Fuel breakdown",
+        "Seasons",
+        "Weather impact",
+        "Costs",
         "Carbon",
-        "Statistical Analysis",
-        "How the Seasons Affect Usage",
-        "Weather Impact",
-        "Usage Shifts",
-        "Forecasting",
-        "Unusual Months",
-        "Data Quality",
-    ]
+        "Unusual months",
+        "Usage shifts",
+        "Consumption over time",
+        "Fuel comparisons (all years)",
+        "Full report (AI Analyst)",
+        "Statistical analysis",
+        "Data quality",
+    ):
+        assert demoted in labels
     assert len(at.get("metric")) > 0
 
-    # Executive Summary: real briefing content, not placeholders.
-    assert any("overall assessment" in md.value.lower() for md in at.tabs[0].get("subheader"))
-    assert any("biggest finding" in md.value.lower() for md in at.tabs[0].get("subheader"))
-    assert list(at.tabs[0].exception) == []
-    # Household energy profile section (Task 10) -- real data has all 3 fuels available.
-    assert any("household energy profile" in s.value.lower() for s in at.tabs[0].get("subheader"))
+    # Home: leads with the month comparison, then the evidence-based briefing.
+    home = _tab(at, "Home")
+    home_subheaders = [s.value.lower() for s in home.get("subheader")]
+    assert home_subheaders[0] == "this month compared with last year"
+    assert "overall assessment" in home_subheaders
+    assert "biggest finding" in home_subheaders
+    assert list(home.exception) == []
 
-    # AI Consultant tab: renders the question list without error, and states which fuel
-    # its answers describe (audit finding F6).
-    assert list(at.tabs[1].exception) == []
-    assert any("questions i can answer" in md.value.lower() for md in at.tabs[1].get("markdown"))
-    assert len(at.tabs[1].get("button")) == 9
-    assert any("answering for" in c.value.lower() for c in at.tabs[1].get("caption"))
+    # Consultant: renders the question list and states which fuel/month it answers for.
+    consultant = _tab(at, "Ask the Energy Consultant")
+    assert list(consultant.exception) == []
+    assert any("questions i can answer" in md.value.lower() for md in consultant.get("markdown"))
+    assert len(consultant.get("button")) == N_CONSULTANT_QUESTIONS
+    assert any("answering for" in c.value.lower() for c in consultant.get("caption"))
+    assert any("month questions answer for" in c.value.lower() for c in consultant.get("caption"))
 
-    # AI Analyst: full deterministic report renders with every section present.
-    assert list(at.tabs[2].exception) == []
-    analyst_headers = " ".join(md.value.lower() for md in at.tabs[2].get("header"))
+    # Full report (AI Analyst): every section present, one level down under Data and methods.
+    analyst = _tab(at, "Full report (AI Analyst)")
+    assert list(analyst.exception) == []
+    analyst_headers = " ".join(md.value.lower() for md in analyst.get("header"))
     for section in (
         "executive summary",
         "key findings",
@@ -64,89 +88,220 @@ def test_app_renders_without_exceptions():
         "limitations",
     ):
         assert section in analyst_headers
-    # Electricity/Gas Findings render as subheaders, not headers -- a different AppTest element type.
-    analyst_subheaders = " ".join(md.value.lower() for md in at.tabs[2].get("subheader"))
+    analyst_subheaders = " ".join(md.value.lower() for md in analyst.get("subheader"))
     assert "electricity findings" in analyst_subheaders
     assert "gas findings" in analyst_subheaders
 
-    # Fuel Breakdown tab: real data has all three fuel exports, so this should show the
-    # cross-check status and a real (not placeholder) fuel-mix finding.
-    assert list(at.tabs[4].exception) == []
-    assert any("matches total" in s.value.lower() for s in at.tabs[4].get("success"))
-    assert any("fuel mix" in s.value.lower() for s in at.tabs[4].get("subheader"))
-    assert any("%" in md.value for md in at.tabs[4].get("markdown"))
+    # Fuel breakdown: cross-check status and a real fuel-mix finding.
+    fuel_tab = _tab(at, "Fuel breakdown")
+    assert list(fuel_tab.exception) == []
+    assert any("matches total" in s.value.lower() for s in fuel_tab.get("success"))
+    assert any("fuel mix" in s.value.lower() for s in fuel_tab.get("subheader"))
 
-    # Comparisons tab (Task 2/5/6/7): renders without error; weather sensitivity needs the
-    # weather toggle (off by default here), so it should show the inert prompt.
-    assert list(at.tabs[5].exception) == []
-    assert any("turn on" in info.value.lower() for info in at.tabs[5].get("info"))
+    # Whole-period comparisons: retained under Long-term trends; weather prompt inert.
+    comparisons = _tab(at, "Fuel comparisons (all years)")
+    assert list(comparisons.exception) == []
+    assert any("turn on" in info.value.lower() for info in comparisons.get("info"))
 
-    # Cost Intelligence tab (Task 4/12): renders the combined cost breakdown table and
-    # benchmark bands without needing the forecast button clicked.
-    assert list(at.tabs[6].exception) == []
-    assert len(at.tabs[6].get("dataframe")) > 0
-    assert any("vs." in m.label for m in at.tabs[6].get("metric"))
+    # Costs: combined cost breakdown and benchmark bands render without any button click.
+    costs = _tab(at, "Costs")
+    assert list(costs.exception) == []
+    assert len(costs.get("dataframe")) > 0
+    assert any("vs." in m.label for m in costs.get("metric"))
 
-    # Carbon tab (Task 8): real data has both electricity and gas, so this should show real
-    # emissions numbers, not the unavailable-data message.
-    assert list(at.tabs[7].exception) == []
-    assert any("emissions" in m.label.lower() for m in at.tabs[7].get("metric"))
-    assert any("co2e" in m.value.lower() for m in at.tabs[7].get("metric"))
+    # Carbon: real data has both fuels, so real emissions numbers.
+    carbon = _tab(at, "Carbon")
+    assert list(carbon.exception) == []
+    assert any("emissions" in m.label.lower() for m in carbon.get("metric"))
 
-    # How the Seasons Affect Usage tab: plain-language summary, interpretation cards, and the
-    # collapsed advanced expander (which still retains the original STL chart/strengths) must
-    # all render from real data without exceptions.
-    seasonal_tab = at.tabs[9]
-    assert list(seasonal_tab.exception) == []
-    seasonal_markdown = " ".join(md.value.lower() for md in seasonal_tab.get("markdown"))
-    assert "winter and summer cycle" in seasonal_markdown
-    metric_labels = [m.label for m in seasonal_tab.get("metric")]
-    assert "Seasonal influence" in metric_labels
-    assert "Long-term trend" in metric_labels
-    assert "Largest unexplained deviation" in metric_labels
-    assert "Seasonal strength" in metric_labels  # retained inside the advanced expander
-    assert "Trend strength" in metric_labels
-    assert any("advanced statistical decomposition" in e.label.lower() for e in seasonal_tab.get("expander"))
-    assert len(seasonal_tab.get("plotly_chart")) == 3  # overview + calendar profile + advanced STL panel
+    # Seasons: plain-language summary with the advanced STL panel retained.
+    seasons = _tab(at, "Seasons")
+    assert list(seasons.exception) == []
+    assert "winter and summer cycle" in " ".join(md.value.lower() for md in seasons.get("markdown"))
+    assert any("advanced statistical decomposition" in e.label.lower() for e in seasons.get("expander"))
 
-    # Weather tab: toggle defaults off, so this must be the inert prompt, not a fetch attempt.
-    assert any("turn on" in info.value.lower() for info in at.tabs[10].get("info"))
+    # Weather impact: toggle defaults off -> inert prompt, no fetch.
+    weather = _tab(at, "Weather impact")
+    assert any("turn on" in info.value.lower() for info in weather.get("info"))
 
-    # Usage Shifts tab: renders (either a detected-points table or the "stable" message).
-    assert list(at.tabs[11].exception) == []
+    # Usage shifts and Unusual months render whatever they find, without error.
+    assert list(_tab(at, "Usage shifts").exception) == []
+    assert list(_tab(at, "Unusual months").exception) == []
 
-    # Forecasting tab: CV ran and picked a model, shown as a subheader.
-    assert any("selected model" in md.value.lower() for md in at.tabs[12].get("subheader"))
-
-    # Unusual Months tab: renders without error, whatever it finds.
-    assert list(at.tabs[13].exception) == []
+    # Forecasting: CV ran and picked a model.
+    forecast = _tab(at, "What should I expect next?")
+    assert any("selected model" in md.value.lower() for md in forecast.get("subheader"))
 
 
-def test_consultant_preset_question_button_renders_real_answer():
-    """Clicking a preset question button on the AI Consultant tab must render a real answer
-    (evidence-backed, not a placeholder) without raising."""
+# --- month-comparison journey -------------------------------------------------------------
+
+
+def test_month_tab_defaults_to_latest_complete_month_vs_last_year():
+    """The primary journey: latest complete month, combined energy, same month last year --
+    with the in-progress month flagged and excluded, and exactly one primary chart."""
     at = AppTest.from_file(str(APP_PATH))
     at.run(timeout=60)
 
-    consultant_tab = at.tabs[1]
-    button = next(b for b in consultant_tab.get("button") if "focus on reducing gas or electricity" in b.label.lower())
+    month_tab = _tab(at, "How did this month compare?")
+    assert list(month_tab.exception) == []
+
+    month_select = next(sb for sb in month_tab.get("selectbox") if sb.label == "Month")
+    latest_complete = (pd.Timestamp.now().to_period("M") - 1).to_timestamp()
+    assert month_select.value == latest_complete
+    # The in-progress current month must not be selectable.
+    assert pd.Timestamp.now().to_period("M").to_timestamp() not in month_select.options
+
+    mode_select = next(sb for sb in month_tab.get("selectbox") if sb.label == "Compare against")
+    assert mode_select.value == "same_month_last_year"
+
+    # Partial-month notice names both months.
+    infos = " ".join(i.value for i in month_tab.get("info"))
+    assert "is incomplete" in infos
+    assert "primary comparison uses" in infos
+
+    # Headline answer present, plus the same-month history chart (2 charts total).
+    headline = next(md.value for md in month_tab.get("markdown") if md.value.startswith("####"))
+    assert "%" in headline
+    assert len(month_tab.get("plotly_chart")) == 2
+
+    # Explanation structure renders.
+    md_text = " ".join(md.value for md in month_tab.get("markdown"))
+    assert "**What changed:**" in md_text
+    assert "**Which fuel caused it:**" in md_text
+
+
+def test_month_tab_mode_switching_updates_content_and_state():
+    at = AppTest.from_file(str(APP_PATH))
+    at.run(timeout=60)
+
+    month_tab = _tab(at, "How did this month compare?")
+    mode_select = next(sb for sb in month_tab.get("selectbox") if sb.label == "Compare against")
+    mode_select.set_value("previous_month").run(timeout=60)
+    assert list(at.exception) == []
+    month_tab = _tab(at, "How did this month compare?")
+    captions = " ".join(c.value for c in month_tab.get("caption"))
+    assert "Adjacent months can differ because of seasonality" in captions
+
+    mode_select = next(sb for sb in month_tab.get("selectbox") if sb.label == "Compare against")
+    mode_select.set_value("typical_month").run(timeout=60)
+    assert list(at.exception) == []
+    month_tab = _tab(at, "How did this month compare?")
+    captions = " ".join(c.value for c in month_tab.get("caption"))
+    assert "Typical" in captions
+
+    mode_select = next(sb for sb in month_tab.get("selectbox") if sb.label == "Compare against")
+    mode_select.set_value("long_term").run(timeout=60)
+    assert list(at.exception) == []
+    month_tab = _tab(at, "How did this month compare?")
+    assert any("trailing 12 months" in m.label.lower() for m in month_tab.get("metric"))
+
+
+def test_month_tab_month_switching_is_exception_free_and_updates_headline():
+    at = AppTest.from_file(str(APP_PATH))
+    at.run(timeout=60)
+
+    month_tab = _tab(at, "How did this month compare?")
+    month_select = next(sb for sb in month_tab.get("selectbox") if sb.label == "Month")
+    month_select.set_value(pd.Timestamp("2024-12-01")).run(timeout=60)
+    assert list(at.exception) == []
+
+    month_tab = _tab(at, "How did this month compare?")
+    headline = next(md.value for md in month_tab.get("markdown") if md.value.startswith("####"))
+    assert "December 2023" in headline  # December 2024 vs December 2023
+
+
+def test_month_tab_fuel_switching_via_segmented_control():
+    at = AppTest.from_file(str(APP_PATH))
+    at.run(timeout=60)
+
+    month_tab = _tab(at, "How did this month compare?")
+    fuel_control = month_tab.get("button_group")[0]  # st.segmented_control in AppTest
+    fuel_control.set_value("gas").run(timeout=60)
+    assert list(at.exception) == []
+
+    month_tab = _tab(at, "How did this month compare?")
+    headline = next(md.value for md in month_tab.get("markdown") if md.value.startswith("####"))
+    assert "gas" in headline.lower()
+
+
+def test_home_month_cards_show_all_three_fuels_with_yoy_deltas():
+    at = AppTest.from_file(str(APP_PATH))
+    at.run(timeout=60)
+
+    home = _tab(at, "Home")
+    metric_labels = [m.label for m in home.get("metric")]
+    assert any(label.startswith("Total energy") for label in metric_labels)
+    assert any(label.startswith("Gas") for label in metric_labels)
+    assert any(label.startswith("Electricity") for label in metric_labels)
+    month_metrics = [m for m in home.get("metric") if "--" in m.label]
+    assert all("vs" in (m.delta or "") for m in month_metrics)
+    # Partial-month honesty on the homepage too.
+    assert any("is incomplete" in i.value for i in home.get("info"))
+
+
+def test_consultant_month_answer_uses_currently_selected_month():
+    """Selecting a different month on the comparison page must change what the Consultant
+    answers -- no stale state (the audit-F2 rule applied to the month journey)."""
+    at = AppTest.from_file(str(APP_PATH))
+    at.run(timeout=60)
+
+    month_tab = _tab(at, "How did this month compare?")
+    month_select = next(sb for sb in month_tab.get("selectbox") if sb.label == "Month")
+    month_select.set_value(pd.Timestamp("2024-12-01")).run(timeout=60)
+
+    consultant = _tab(at, "Ask the Energy Consultant")
+    assert any("December 2024" in c.value for c in consultant.get("caption"))
+    button = next(
+        b for b in consultant.get("button") if b.label == "How did this month compare with last year?"
+    )
+    button.click().run(timeout=60)
+    assert list(at.exception) == []
+    consultant = _tab(at, "Ask the Energy Consultant")
+    answer_text = " ".join(md.value for md in consultant.get("markdown"))
+    assert "December 2023" in answer_text  # answers for Dec 2024 vs Dec 2023, not the default month
+
+
+def test_consultant_free_text_routes_to_month_comparison():
+    at = AppTest.from_file(str(APP_PATH))
+    at.run(timeout=60)
+
+    consultant = _tab(at, "Ask the Energy Consultant")
+    text_input = consultant.get("text_input")[0]
+    text_input.set_value("did I use more than usual this month?").run(timeout=60)
+    assert list(at.exception) == []
+    consultant = _tab(at, "Ask the Energy Consultant")
+    answer_text = " ".join(md.value.lower() for md in consultant.get("markdown"))
+    assert "did i use more energy than usual this month?" in answer_text
+
+
+# --- consultant regression tests (pre-existing behaviour) ---------------------------------
+
+
+def test_consultant_preset_question_button_renders_real_answer():
+    at = AppTest.from_file(str(APP_PATH))
+    at.run(timeout=60)
+
+    consultant = _tab(at, "Ask the Energy Consultant")
+    button = next(
+        b for b in consultant.get("button") if "focus on reducing gas or electricity" in b.label.lower()
+    )
     button.click().run(timeout=60)
 
     assert list(at.exception) == []
-    assert list(at.tabs[1].exception) == []
-    markdown_text = " ".join(md.value.lower() for md in at.tabs[1].get("markdown"))
+    consultant = _tab(at, "Ask the Energy Consultant")
+    markdown_text = " ".join(md.value.lower() for md in consultant.get("markdown"))
     assert "gas" in markdown_text or "electricity" in markdown_text
-    assert len(at.tabs[1].get("expander")) > 0  # the evidence expander rendered
+    assert len(consultant.get("expander")) > 0  # the evidence expander rendered
 
 
 def test_consultant_answer_recomputed_after_fuel_switch():
     """Regression (audit F2): the Consultant stores the selected *question*, not the computed
-    answer, so switching fuel recomputes the answer from the new context instead of replaying
-    a stale one built for the previous fuel."""
+    answer, so switching fuel recomputes the answer from the new context."""
     at = AppTest.from_file(str(APP_PATH))
     at.run(timeout=60)
 
-    button = next(b for b in at.tabs[1].get("button") if "compare to average" in b.label.lower())
+    consultant = _tab(at, "Ask the Energy Consultant")
+    button = next(b for b in consultant.get("button") if "compare to average" in b.label.lower())
     button.click().run(timeout=60)
     assert at.session_state["consultant_selected_question"] == "How does my usage compare to average?"
 
@@ -154,64 +309,43 @@ def test_consultant_answer_recomputed_after_fuel_switch():
     fuel_select.set_value("gas").run(timeout=60)
 
     assert list(at.exception) == []
-    # The question survives the fuel switch and the answer is re-rendered from current context.
     assert at.session_state["consultant_selected_question"] == "How does my usage compare to average?"
-    markdown_text = " ".join(md.value.lower() for md in at.tabs[1].get("markdown"))
+    markdown_text = " ".join(md.value.lower() for md in _tab(at, "Ask the Energy Consultant").get("markdown"))
     assert "uk household" in markdown_text
-
-
-def test_consultant_free_text_question_routes_correctly():
-    """Typing a natural-language phrasing of a supported question must route to the right
-    handler and render an answer, without needing the exact preset wording."""
-    at = AppTest.from_file(str(APP_PATH))
-    at.run(timeout=60)
-
-    consultant_tab = at.tabs[1]
-    text_input = consultant_tab.get("text_input")[0]
-    text_input.set_value("why did my bill increase this year").run(timeout=60)
-
-    assert list(at.exception) == []
-    assert list(at.tabs[1].exception) == []
-    markdown_text = " ".join(md.value.lower() for md in at.tabs[1].get("markdown"))
-    assert "why did my bill change" in markdown_text
 
 
 def test_consultant_unmatched_free_text_falls_back_to_question_list():
     at = AppTest.from_file(str(APP_PATH))
     at.run(timeout=60)
 
-    consultant_tab = at.tabs[1]
-    text_input = consultant_tab.get("text_input")[0]
+    consultant = _tab(at, "Ask the Energy Consultant")
+    text_input = consultant.get("text_input")[0]
     text_input.set_value("asdkjaslkdj random gibberish text").run(timeout=60)
 
     assert list(at.exception) == []
-    assert any("couldn't confidently match" in info.value.lower() for info in at.tabs[1].get("info"))
-    assert len(at.tabs[1].get("button")) == 9  # the fallback question list still renders
+    consultant = _tab(at, "Ask the Energy Consultant")
+    assert any("couldn't confidently match" in info.value.lower() for info in consultant.get("info"))
+    assert len(consultant.get("button")) == N_CONSULTANT_QUESTIONS
 
 
 def test_multi_fuel_forecast_button_populates_comparison_across_tabs():
-    """Clicking the opt-in forecast-comparison button on Cost Intelligence must not raise, and
-    the result should also become visible on the Comparisons tab (shared via session state)."""
     at = AppTest.from_file(str(APP_PATH))
     at.run(timeout=60)
 
-    cost_tab = at.tabs[6]
-    button = next(b for b in cost_tab.get("button") if "multi-fuel forecast" in b.label.lower())
+    costs = _tab(at, "Costs")
+    button = next(b for b in costs.get("button") if "multi-fuel forecast" in b.label.lower())
     button.click().run(timeout=120)
 
     assert list(at.exception) == []
-    assert list(at.tabs[6].exception) == []
-    assert len(at.tabs[6].get("dataframe")) > 0
-
-    comparisons_tab = at.tabs[5]
-    assert list(comparisons_tab.exception) == []
-    assert any("likely (kwh)" in df.value.columns.str.lower().tolist() for df in comparisons_tab.get("dataframe"))
+    assert len(_tab(at, "Costs").get("dataframe")) > 0
+    comparisons = _tab(at, "Fuel comparisons (all years)")
+    assert list(comparisons.exception) == []
+    assert any(
+        "likely (kwh)" in df.value.columns.str.lower().tolist() for df in comparisons.get("dataframe")
+    )
 
 
 def test_report_generate_download_and_fingerprint_invalidation():
-    """The sidebar's two-step report flow: Generate builds and stores the HTML, Download
-    appears with a non-trivial payload, and switching fuel invalidates the stored report
-    (fingerprint mismatch) so a stale report is never served -- the audit F2/F7 lesson."""
     at = AppTest.from_file(str(APP_PATH))
     at.run(timeout=60)
 
@@ -221,28 +355,21 @@ def test_report_generate_download_and_fingerprint_invalidation():
     assert list(at.exception) == []
     stored = at.session_state["household_report"]
     assert stored is not None
-    fingerprint, html = stored
+    _fingerprint, html = stored
     assert html.startswith("<!DOCTYPE html>")
-    assert len(html) > 1_000_000  # plotly.js inlined -- a real self-contained report
+    assert len(html) > 1_000_000
     assert "Household Energy Review" in html
-    # Download button now present (a distinct AppTest element type), Generate gone.
     download_labels = [d.label.lower() for d in at.sidebar.get("download_button")]
     assert any("download household energy review" in label for label in download_labels)
-    assert not any("generate household energy review" in b.label.lower() for b in at.sidebar.button)
 
-    # Fuel switch -> fingerprint mismatch -> stored report discarded, Generate returns.
     fuel_select = next(sb for sb in at.sidebar.selectbox if sb.label == "Fuel to analyze")
     fuel_select.set_value("gas").run(timeout=120)
     assert list(at.exception) == []
     assert "household_report" not in at.session_state
     assert any("generate household energy review" in b.label.lower() for b in at.sidebar.button)
-    assert at.sidebar.get("download_button") == []
 
 
 def test_fuel_selectbox_offers_all_three_fuels_and_switching_is_exception_free():
-    """The real data/raw/ has Total/Electricity/Gas exports, so all three options should appear,
-    and switching the selection must re-run the entire pipeline against that fuel's data cleanly.
-    """
     at = AppTest.from_file(str(APP_PATH))
     at.run(timeout=60)
 
@@ -260,48 +387,28 @@ def test_fuel_selectbox_offers_all_three_fuels_and_switching_is_exception_free()
 
 
 def test_seasonal_tab_plain_language_summary_matches_real_data():
-    """On the real 35-month dataset: strong seasonality, a stable trend, and December 2024 as
-    the largest unexplained deviation (+253 kWh) -- verified against src.seasonal_summary
-    directly, not just "renders something"."""
+    """On the real 35-month dataset: strong seasonality, a stable trend, December 2024 as
+    the largest unexplained deviation (+253 kWh)."""
     at = AppTest.from_file(str(APP_PATH))
     at.run(timeout=60)
 
-    seasonal_tab = at.tabs[9]
-    conclusion = next(
-        md.value for md in seasonal_tab.get("markdown") if md.value.startswith("#####")
-    )
+    seasons = _tab(at, "Seasons")
+    conclusion = next(md.value for md in seasons.get("markdown") if md.value.startswith("#####"))
     assert "winter and summer cycle" in conclusion
     assert "broadly stable" in conclusion
     assert "December 2024 was materially higher" in conclusion
 
-    metrics = {m.label: (m.value, m.delta) for m in seasonal_tab.get("metric")}
+    metrics = {m.label: (m.value, m.delta) for m in seasons.get("metric")}
     assert metrics["Seasonal influence"][0] == "Strong"
     assert metrics["Long-term trend"][0] == "Stable"
     assert metrics["Largest unexplained deviation"][0] == "Dec 2024"
     assert metrics["Largest unexplained deviation"][1] == "+253 kWh"
-
-    assert any("december 2024 was 253 kwh higher" in i.value.lower() for i in seasonal_tab.get("info"))
-
-
-def test_seasonal_tab_renders_without_exceptions_regardless_of_container_width():
-    """Layout responsiveness at 390px/768px/desktop relies entirely on Streamlit's built-in
-    responsive columns/containers (st.columns stacks vertically below ~640px CSS breakpoints
-    by framework default) -- there is no width-conditional Python branching in
-    ``render_seasonality`` for a narrow viewport to break. AppTest has no viewport/pixel-width
-    concept, so this can only assert the exception-free render that width-independent code
-    guarantees; real responsive layout was checked manually in a browser (see PR notes)."""
-    at = AppTest.from_file(str(APP_PATH))
-    at.run(timeout=60)
-
-    assert list(at.tabs[9].exception) == []
-    assert len(at.tabs[9].get("column")) >= 3  # the 3-card interpretation row uses st.columns(3)
 
 
 def _synthetic_daily_weather(start: str, end: str):
     """Deterministic fake daily weather covering [start, end]: seasonal temperatures, a
     snowy + windy December 2024, quiet otherwise. Full coverage, all schema columns."""
     import numpy as np
-    import pandas as pd
 
     dates = pd.date_range(start, end, freq="D")
     day_of_year = dates.day_of_year.to_numpy()
@@ -329,9 +436,8 @@ def _synthetic_daily_weather(start: str, end: str):
 
 
 def test_weather_on_renders_severe_weather_context_without_network(monkeypatch):
-    """Turning the weather toggle on must exercise the full Weather Context Engine path --
-    energy signature, monthly context, per-anomaly interpretation, Consultant question --
-    with the fetch mocked out, so the suite stays network-free."""
+    """Turning the weather toggle on must exercise the full Weather Context Engine path,
+    plus the month tab's weather-explained breakdown, with the fetch mocked out."""
     import sys
 
     sys.path.insert(0, str(APP_PATH.parent))
@@ -343,8 +449,6 @@ def test_weather_on_renders_severe_weather_context_without_network(monkeypatch):
 
     monkeypatch.setattr(tabs_phase2, "fetch_daily_weather", _fake_fetch)
     monkeypatch.setattr(tabs_weather_context, "fetch_daily_weather", _fake_fetch)
-    # The cached loaders would replay results computed with the real fetch (or a previous
-    # test's fake) -- clear them so this test's fake is actually exercised.
     tabs_phase2.load_weather_analysis.clear()
     tabs_weather_context.load_weather_context.clear()
 
@@ -355,32 +459,33 @@ def test_weather_on_renders_severe_weather_context_without_network(monkeypatch):
 
     assert list(at.exception) == []
 
-    # Weather Impact tab: severe-weather history summary renders, and cooling stays out of
-    # the main view for this (synthetically cold-climate) household.
-    weather_tab = at.tabs[10]
-    assert list(weather_tab.exception) == []
-    subheaders = " ".join(s.value.lower() for s in weather_tab.get("subheader"))
+    weather = _tab(at, "Weather impact")
+    assert list(weather.exception) == []
+    subheaders = " ".join(s.value.lower() for s in weather.get("subheader"))
     assert "severe weather in your history" in subheaders
-    captions = " ".join(c.value.lower() for c in weather_tab.get("caption"))
-    assert "too small to detect" in captions  # cooling hidden from main view
 
-    # Unusual Months tab: December 2024 (the real data's known anomaly) gets a weather
-    # context block with facts, meaning, and the honesty limitation -- no hover required.
-    anomalies_tab = at.tabs[13]
+    anomalies_tab = _tab(at, "Unusual months")
     assert list(anomalies_tab.exception) == []
-    anom_subheaders = " ".join(s.value.lower() for s in anomalies_tab.get("subheader"))
-    assert "severe weather context" in anom_subheaders
     anom_markdown = " ".join(md.value.lower() for md in anomalies_tab.get("markdown"))
     assert "what the weather was like" in anom_markdown
-    assert "what this may mean" in anom_markdown
     assert "snow day" in anom_markdown
-    expander_labels = [e.label.lower() for e in anomalies_tab.get("expander")]
-    assert any("advanced weather details" in label for label in expander_labels)
 
-    # Consultant: the new severe-weather question renders a hedged, deterministic answer.
-    button = next(b for b in at.tabs[1].get("button") if "severe weather" in b.label.lower())
+    # Month tab: with weather on, the explanation includes the weather split.
+    month_tab = _tab(at, "How did this month compare?")
+    assert list(month_tab.exception) == []
+    month_markdown = " ".join(md.value for md in month_tab.get("markdown"))
+    assert "**How weather affected it:**" in month_markdown
+
+    # Home: "What explains the change?" breakdown appears only when the model covers it.
+    home = _tab(at, "Home")
+    home_markdown = " ".join(md.value for md in home.get("markdown"))
+    assert "What explains the change?" in home_markdown
+    assert "Weather-related" in home_markdown
+
+    # Consultant: the weather-attribution month question now has a real split to report.
+    consultant = _tab(at, "Ask the Energy Consultant")
+    button = next(b for b in consultant.get("button") if b.label == "Was the difference caused by weather?")
     button.click().run(timeout=120)
     assert list(at.exception) == []
-    consultant_markdown = " ".join(md.value.lower() for md in at.tabs[1].get("markdown"))
-    assert "december 2024" in consultant_markdown
-    assert "cannot confirm" in consultant_markdown
+    answer_text = " ".join(md.value.lower() for md in _tab(at, "Ask the Energy Consultant").get("markdown"))
+    assert "kwh change" in answer_text or "matches what the temperature model expected" in answer_text

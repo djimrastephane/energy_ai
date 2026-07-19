@@ -328,6 +328,59 @@ relative-severity bands, and the A-D interpretation patterns.
   report; adding severe-weather variables to the regression (requires a
   formal model-selection study first, per the design principle).
 
+## Month-comparison UX refactor (2026-07)
+
+The primary journey became "latest complete month vs the same calendar
+month last year" (see `docs/month_comparison.md` and
+`docs/audits/month_comparison_ux_audit.md` for the before-state audit).
+
+- New `src/monthly_comparison.py`: typed frozen `MonthlyComparison`, five
+  single-month modes (same-month-last-year default, previous-month with a
+  seasonality warning, typical/best/worst same-calendar-month) plus a
+  long-term mode; complete-month detection; exact cost usage/rate split;
+  weather-explained vs unexplained decomposition reusing the already-
+  fitted energy signature (nothing refitted on selection changes).
+- New `src/monthly_narrative.py`: deterministic household-language
+  narratives (headline <= 25 words, primary paragraph <= 80) built from
+  documented rules -- practical change bands (5%/20%, in
+  `config.MonthComparisonThresholds`), "explained by colder weather" only
+  when weather covers >= half the change, record months never called
+  "within the normal range". Banned generic-analyst phrasings are tested
+  against. `src/report.py`'s overall assessment reworded the same way
+  ("you used 14% more energy than the year before", not "running at
+  expected levels").
+- Navigation reorganized around user questions: 15 flat tabs became 9
+  question-oriented top-level tabs (Home / How did this month compare? /
+  What drives my usage? / Costs and carbon / Did anything unusual happen?
+  / What should I expect next? / Ask the Energy Consultant / Long-term
+  trends / Data and methods) with the technical and whole-period surfaces
+  demoted to sub-tabs -- all retained, none removed. The trailing-12-month
+  KPI strip moved from the homepage to Long-term trends.
+- Home now opens with "This month compared with last year": headline
+  sentence, three cards (Total/Gas/Electricity with contributions), a
+  weather/unexplained breakdown when the model covers both months, one
+  "what this means" line, and an evidence-gated action.
+- New "How did this month compare?" page: month/fuel/mode controls
+  (shared session state resolved once in `main()` so Home, the page, and
+  the Consultant always describe the same comparison -- the audit-F2
+  lesson), one grouped two-month bar chart above the fold, same-calendar-
+  month history chart, structured explanation, costs/carbon for the
+  selected month, technical-details expander with formulas and
+  thresholds. Partial months are excluded from selection, flagged
+  ("July 2026 is incomplete. The primary comparison uses June 2026."),
+  and shown only as labelled month-to-date -- never extrapolated.
+- Consultant: 8 new month questions (17 total), all answering from the
+  currently selected month/fuel/mode via `src/consultant_month.py`.
+- Real-data verification (`scripts/verify_month_comparison.py`) across
+  the brief's 7 scenarios caught three wording defects before ship:
+  an increase inside residual noise being credited to "colder weather"
+  when the weather was actually milder; "broadly explained by weather"
+  when weather covered only 43% of the change; and a record-low January
+  described as "within the normal range".
+- Performance: warm month/mode/fuel-switch interactions ~0.2 s (target
+  < 500 ms); cold render 5.1 s and sidebar fuel switch 3.5 s, both
+  marginally better than baseline. 448 tests (from 378), coverage 94%.
+
 ## Phase 5 -- explainability
 
 - Feature importance / SHAP for the regression and ML forecast models.

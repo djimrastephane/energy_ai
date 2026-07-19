@@ -6,6 +6,7 @@ rationale -- this tab explains analysis, it never runs any.
 from __future__ import annotations
 
 import streamlit as st
+from tabs_month import FUEL_DISPLAY_LABELS, MODE_DISPLAY_LABELS
 
 from src.consultant import ConsultantAnswer, ConsultantContext
 from src.consultant_router import QUESTIONS, route_question
@@ -39,6 +40,13 @@ def render_consultant(ctx: ConsultantContext) -> None:
 
     if ctx.fuel_label:
         st.caption(f"Answering for: **{ctx.fuel_label}** (change via the sidebar's Fuel selector)")
+    if ctx.selected_comparison_month is not None:
+        st.caption(
+            f"Month questions answer for: **{ctx.selected_comparison_month.strftime('%B %Y')}** · "
+            f"**{FUEL_DISPLAY_LABELS.get(ctx.comparison_fuel, ctx.comparison_fuel)}** · "
+            f"**{MODE_DISPLAY_LABELS.get(ctx.comparison_mode, ctx.comparison_mode)}** "
+            "(change these on 'How did this month compare?')"
+        )
 
     question_text = st.text_input("Ask a question", placeholder="e.g. Why did my bill go up?")
 

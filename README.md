@@ -16,17 +16,29 @@ Real answers from the author's real 35-month household dataset:
 
 | You ask | It answers |
 |---|---|
+| How did this month compare with last year? | *"You used 14% more energy than June 2025, mainly because electricity use rose. Gas use actually fell. Worth a quick look: this is your highest June on record."* |
 | Should I focus on reducing gas or electricity? | *"Gas accounts for 65% of annual energy and drives 89% of heating sensitivity; reducing gas demand is likely to produce larger savings than reducing electricity use."* |
 | Why was December 2024 unusual? | *"December 2024 had mixed severe weather (5 severe-gust days, max 91 km/h), which may have contributed to higher usage -- but consumption remained +219 kWh above what the temperature model expected, so severe weather alone does not explain the full increase."* |
-| What changed compared with last winter? | *"Winter 2025/2026 used 21% less energy than winter 2024/2025 (1,720 kWh vs 2,187 kWh)."* |
 | How does my usage compare to average? | *"Electricity usage is below average for a UK household (1,555 kWh/year vs a 2,500 kWh/year reference). Gas usage is below average (2,863 vs 9,500)."* |
 
 ## Features
 
-- **AI Consultant & AI Analyst** -- 9 canonical questions with free-text
-  routing, plus a full written report. Deterministic (no LLM): every answer
-  cites its evidence, and unmatched questions get the question list back,
-  never a guess.
+- **Month-first journey** -- the default view compares the latest
+  *complete* month with the same calendar month last year (never January
+  vs December: that mostly measures the seasons, and never a partial
+  month presented as complete). Alternative modes: previous month,
+  typical/best/worst same-calendar month, long-term trend. Changes are
+  split into weather-explained and unexplained parts, attributed to gas
+  vs electricity, and judged in words ("Higher but weather-explained"),
+  with documented practical thresholds -- see
+  [docs/month_comparison.md](docs/month_comparison.md).
+
+- **AI Consultant & AI Analyst** -- 17 canonical questions with free-text
+  routing (month-comparison questions answer for the currently selected
+  month, fuel, and comparison mode -- never stale state), plus a full
+  written report. Deterministic (no LLM): every answer cites its
+  evidence, and unmatched questions get the question list back, never a
+  guess.
 - **Weather-adjusted analysis** -- the standard degree-day "energy
   signature" regression (Open-Meteo, free, cached to disk for offline use)
   separates weather from behaviour; snow/wind/severe-weather context
@@ -95,13 +107,20 @@ and implausible values are detected and reported on the Data Quality tab.
 
 ```
 energy_ai/
-├── app/          # Streamlit UI: 15 tabs, sidebar, charts, HTML report builder
+├── app/          # Streamlit UI: 9 question-oriented tabs, sidebar, charts, HTML report
 ├── src/          # all analysis logic -- no Streamlit imports, unit-testable directly
 ├── data/raw/     # your OVO CSV exports (data/processed/ holds the weather cache)
-├── docs/         # roadmap, weather-context data dictionary, audit reports
+├── docs/         # roadmap, month-comparison + weather data dictionaries, audit reports
 ├── tests/        # pytest suite: unit + integration + UI (AppTest), network-free
 └── config.py     # paths, thresholds, weather/benchmark/carbon constants -- all in one place
 ```
+
+Navigation is organized around user questions -- Home, "How did this
+month compare?", "What drives my usage?", "Costs and carbon", "Did
+anything unusual happen?", "What should I expect next?", "Ask the Energy
+Consultant" -- with whole-period views under **Long-term trends** and the
+statistical machinery (full AI Analyst report, diagnostics, data
+quality) under **Data and methods**: demoted, never deleted.
 
 Each module carries a docstring explaining what it does and why -- the
 layout above is deliberately shallow; start at `app/streamlit_app.py` or
@@ -112,6 +131,10 @@ layout above is deliberately shallow; start at `app/streamlit_app.py` or
 - [docs/roadmap.md](docs/roadmap.md) -- the full build history, phase by
   phase, including every real bug that manual verification against real
   data caught along the way.
+- [docs/month_comparison.md](docs/month_comparison.md) -- why
+  same-month-last-year is the default, how partial months are handled,
+  the weather decomposition, change-category thresholds, judgement
+  labels, and edge-case fallbacks.
 - [docs/weather_context.md](docs/weather_context.md) -- weather data
   dictionary, severe-weather thresholds and sources, cache versioning,
   interpretation rules.
