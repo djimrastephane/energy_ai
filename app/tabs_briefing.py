@@ -1,40 +1,29 @@
-"""Executive Briefing tab: an evidence-based summary, not a KPI dump.
+"""Home tab: the month-first executive summary.
 
-Every sentence here is pulled from ``src.report.AnalystReport`` -- the same
-object the AI Analyst page (``app/tabs_analyst.py``) renders in full, so
-the two surfaces can never contradict each other.
+Leads with the question a homeowner actually asks -- "how did this month
+compare with the same month last year?" -- using the latest *complete*
+month (never the in-progress one), then the existing evidence-based
+briefing (assessment, biggest finding, saving opportunity, forecast)
+below. Every number is pulled from the shared ``MonthContext`` built once
+in ``main()`` and from ``src.report.AnalystReport`` -- the same objects
+the comparison page, AI Analyst, and Consultant read, so the surfaces
+can never contradict each other.
+
+The trailing-12-month KPI strip that used to open this page lives under
+Long-term trends now: a 12-month window answers "how is the year going",
+not "how did this month compare", and it kept pulling attention first.
 """
 
 from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
+from tabs_month import MonthContext
 
 from src.forecast_evaluation import ForecastResult
-from src.kpis import KPIComparison, compute_kpis
 from src.report import NO_SAVINGS_MESSAGE, AnalystReport
-from src.utils import format_gbp
 
 _CONFIDENCE_ICON = {"High": "🟢", "Medium": "🟡", "Low": "🔴"}
-
-
-def _fmt(value: float, unit: str) -> str:
-    if unit == "£":
-        return format_gbp(value)
-    if unit == "£/kWh":
-        return f"£{value:.3f}/kWh"
-    return f"{value:,.0f} {unit}".strip()
-
-
-def _render_kpi_strip(kpis: list[KPIComparison]) -> None:
-    headline = [k for k in kpis if k.label in ("Total consumption", "Total cost")]
-    if not headline:
-        return
-    cols = st.columns(len(headline))
-    for col, kpi in zip(cols, headline, strict=True):
-        with col:
-            delta = f"{kpi.pct_change:+.1f}%" if kpi.pct_change is not None else None
-            st.metric(f"{kpi.label} (trailing 12mo)", _fmt(kpi.current, kpi.unit), delta)
 
 
 def _confidence_badge(col, label: str, rating) -> None:
@@ -43,20 +32,116 @@ def _confidence_badge(col, label: str, rating) -> None:
         st.metric(label, f"{icon} {rating.level}", help=rating.reason)
 
 
+def _contribution_caption(change_kwh: float | None, share_pct: float | None) -> str | None:
+    if change_kwh is None:
+        return None
+    if share_pct is None:
+        return f"{change_kwh:+,.0f} kWh of the change"
+    if share_pct < 0:
+        return f"{change_kwh:+,.0f} kWh -- moved against the overall change"
+    return f"{change_kwh:+,.0f} kWh ({share_pct:.0f}% of the change)"
+
+
+def _render_month_headline(ctx: MonthContext) -> None:
+    """The three compact cards: Total energy, Gas, Electricity -- current month vs same
+    month last year, judgement in words (an increase is never automatically red)."""
+    st.subheader("This month compared with last year")
+    if ctx.partial_note:
+        st.info(ctx.partial_note)
+
+    total = ctx.comparisons.get("total")
+    if total is None or ctx.selected_month is None:
+        st.info("Not enough data yet for a month-on-month comparison.")
+        return
+
+    narrative = ctx.narrative
+    if narrative is not None:
+        st.markdown(f"##### {narrative.headline}")
+        st.caption(f"{total.judgement} · Confidence: {total.confidence}")
+
+    month_label = ctx.selected_month.strftime("%b %Y")
+    comparison_label = (
+        total.comparison_month.strftime("%b %Y") if total.comparison_month is not None else "last year"
+    )
+    elec = ctx.comparisons.get("electricity")
+    gas = ctx.comparisons.get("gas")
+    contributions = ctx.contributions
+
+    cols = st.columns(3)
+    cards = [
+        ("Total energy", total, None),
+        ("Gas", gas, contributions.gas_change_kwh if contributions else None),
+        ("Electricity", elec, contributions.electricity_change_kwh if contributions else None),
+    ]
+    shares = {
+        "Gas": contributions.gas_share_pct if contributions else None,
+        "Electricity": contributions.electricity_share_pct if contributions else None,
+    }
+    for col, (label, comparison, contribution_kwh) in zip(cols, cards, strict=True):
+        with col:
+            if comparison is None:
+                st.metric(label, "no data")
+                continue
+            delta = (
+                f"{comparison.percentage_change:+.0f}% vs {comparison_label}"
+                if comparison.percentage_change is not None
+                else None
+            )
+            st.metric(
+                f"{label} -- {month_label}",
+                f"{comparison.current_consumption_kwh:,.0f} kWh",
+                delta,
+                delta_color="off",
+                help=(
+                    f"{comparison_label}: {comparison.comparison_consumption_kwh:,.0f} kWh"
+                    if comparison.comparison_consumption_kwh is not None
+                    else None
+                ),
+            )
+            if label != "Total energy":
+                caption = _contribution_caption(contribution_kwh, shares.get(label))
+                if caption:
+                    st.caption(caption)
+
+    # What explains the change? -- only when the weather model actually covers both months.
+    if total.weather_explained_change_kwh is not None and total.absolute_change_kwh is not None:
+        st.markdown("**What explains the change?**")
+        st.markdown(
+            f"- Weather-related: {total.weather_explained_change_kwh:+,.0f} kWh\n"
+            f"- Remaining unexplained: {total.unexplained_change_kwh:+,.0f} kWh"
+            + (
+                f"\n- By fuel: gas {contributions.gas_change_kwh:+,.0f} kWh, "
+                f"electricity {contributions.electricity_change_kwh:+,.0f} kWh"
+                if contributions
+                else ""
+            )
+        )
+
+    if narrative is not None:
+        meaning = narrative.weather_effect or narrative.is_unusual
+        if meaning and narrative.which_fuel:
+            meaning = f"{narrative.which_fuel} {meaning}"
+        if meaning:
+            st.markdown(f"**What this means:** {meaning}")
+        if narrative.action:
+            st.markdown(f"**What to do:** {narrative.action}")
+    st.caption("Full breakdown, other comparison modes, and history: 'How did this month compare?'")
+
+
 def render_executive_briefing(
     clean: pd.DataFrame,
     analyst_report: AnalystReport,
     forecast_12mo: ForecastResult | None,
     forecast_error: str | None,
+    month_ctx: MonthContext,
 ) -> None:
     st.caption(
         "An evidence-based briefing, not a statistics dump -- every statement below traces to a "
-        "specific number computed elsewhere in the app. See the AI Analyst tab for the full report "
-        "with evidence and methodology, or the individual analysis tabs for the underlying detail."
+        "specific number computed elsewhere in the app. The full report with evidence and "
+        "methodology is under Data and methods."
     )
 
-    kpis = compute_kpis(clean, months=12)
-    _render_kpi_strip(kpis)
+    _render_month_headline(month_ctx)
 
     st.divider()
     st.subheader("Overall assessment")
@@ -103,7 +188,7 @@ def render_executive_briefing(
         c3.metric("Worst plausible", f"£{worst * unit_rate:,.0f}", help=tooltip)
         st.caption(
             f"Based on the {forecast_12mo.model_name} model (auto-selected by cross-validation). "
-            "See the Forecasting tab for the full model comparison and chart."
+            "See 'What should I expect next?' for the full model comparison and chart."
         )
     else:
         st.info("Not enough history for a cross-validated forecast yet.")
@@ -121,7 +206,7 @@ def render_executive_briefing(
             st.write(f"**Fuel mix:** {analyst_report.fuel_mix_finding.narrative}")
         if analyst_report.weather_vs_behavioural_summary:
             st.write(f"**Weather vs. behavioural impact:** {analyst_report.weather_vs_behavioural_summary}")
-        st.caption("See the Comparisons tab for the full electricity-vs-gas breakdown.")
+        st.caption("See 'What drives my usage?' for the full electricity-vs-gas breakdown.")
 
     st.divider()
     st.subheader("Confidence")
@@ -131,6 +216,6 @@ def render_executive_briefing(
     _confidence_badge(c3, "Weather model", analyst_report.confidence["weather_model"])
     _confidence_badge(c4, "Anomaly detection", analyst_report.confidence["anomaly_detection"])
     st.caption(
-        "See the AI Analyst tab for the full report, including every finding's evidence and "
-        "every recommendation's rationale."
+        "The full report -- every finding's evidence and every recommendation's rationale -- is "
+        "under Data and methods → Full report (AI Analyst)."
     )

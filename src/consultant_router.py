@@ -23,10 +23,30 @@ from src.consultant import (
     answer_severe_weather,
     answer_winter_comparison,
 )
+from src.consultant_month import (
+    answer_best_or_worst_month,
+    answer_month_vs_last_year,
+    answer_month_vs_typical,
+    answer_should_i_be_concerned,
+    answer_was_it_weather,
+    answer_what_next,
+    answer_which_fuel_caused_change,
+    answer_why_expensive,
+)
 
 ConsultantHandler = Callable[[ConsultantContext], ConsultantAnswer]
 
+# Month-comparison questions first -- they answer for the currently selected
+# month/fuel/comparison mode (see src.consultant_month) and are the primary journey.
 QUESTIONS: list[tuple[str, ConsultantHandler]] = [
+    ("How did this month compare with last year?", answer_month_vs_last_year),
+    ("Did I use more energy than usual this month?", answer_month_vs_typical),
+    ("Which fuel caused the change?", answer_which_fuel_caused_change),
+    ("Was the difference caused by weather?", answer_was_it_weather),
+    ("Is this my best month on record?", answer_best_or_worst_month),
+    ("Why was this month expensive?", answer_why_expensive),
+    ("Should I be concerned?", answer_should_i_be_concerned),
+    ("What should I do next?", answer_what_next),
     ("Why did my bill change?", answer_bill_change),
     ("What changed compared with last winter?", answer_winter_comparison),
     ("Should I focus on reducing gas or electricity?", answer_fuel_focus),
@@ -38,7 +58,78 @@ QUESTIONS: list[tuple[str, ConsultantHandler]] = [
     ("Where can I realistically save money?", answer_savings),
 ]
 
+_MONTH_NAMES = [
+    "january", "february", "march", "april", "may", "june",
+    "july", "august", "september", "october", "november", "december",
+]
+
 _KEYWORDS: dict[str, list[str]] = {
+    # Month-comparison questions first: their phrasings are more specific than the
+    # older whole-period questions below, so they must win the keyword scan.
+    "How did this month compare with last year?": [
+        "this month compare",
+        "month compare with last year",
+        "compared with last year",
+        "compare to last year",
+        "than last year",
+        "vs last year",
+        "same month last year",
+    ],
+    "Did I use more energy than usual this month?": [
+        "than usual",
+        "more than usual",
+        "less than usual",
+        "usual this month",
+        "normal for this month",
+        "typical for this month",
+    ],
+    "Which fuel caused the change?": [
+        "which fuel caused",
+        "fuel caused",
+        "caused the change",
+        "what caused the change",
+        "gas or electricity caused",
+    ],
+    "Was the difference caused by weather?": [
+        "caused by weather",
+        "because of weather",
+        "because of the weather",
+        "due to weather",
+        "down to weather",
+        "weather explain the change",
+        "weather explain the difference",
+        "explained by weather",
+        "difference caused by",
+    ],
+    "Is this my best month on record?": [
+        "on record",
+        "my best",
+        "my worst",
+        "best month",
+        "worst month",
+        *[f"best {m}" for m in _MONTH_NAMES],
+        *[f"worst {m}" for m in _MONTH_NAMES],
+    ],
+    "Why was this month expensive?": [
+        "expensive",
+        "cost so much",
+        "month cost more",
+        "why was this month",
+    ],
+    "Should I be concerned?": [
+        "concerned",
+        "worried",
+        "should i worry",
+        "worry about",
+        "be alarmed",
+    ],
+    "What should I do next?": [
+        "what should i do",
+        "do next",
+        "next step",
+        "what now",
+        "what action",
+    ],
     "Why did my bill change?": [
         "why did my bill",
         "why is my bill",

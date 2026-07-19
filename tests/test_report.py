@@ -45,18 +45,18 @@ def test_overall_assessment_reports_high_uncertainty_on_low_data_quality():
 
 def test_overall_assessment_normal_for_small_change():
     text = _overall_assessment(2.0, ConfidenceRating("High", "clean"))
-    assert "normal, expected levels" in text
+    assert "about the same energy" in text
 
 
-def test_overall_assessment_higher_than_expected():
+def test_overall_assessment_states_percentage_increase():
     text = _overall_assessment(12.0, ConfidenceRating("High", "clean"))
-    assert "higher than expected" in text
+    assert "12% more energy" in text
     assert "12%" in text
 
 
-def test_overall_assessment_lower_than_expected():
+def test_overall_assessment_states_percentage_decrease():
     text = _overall_assessment(-8.0, ConfidenceRating("High", "clean"))
-    assert "lower than expected" in text
+    assert "less energy" in text
 
 
 def test_overall_assessment_none_when_no_yoy_data():

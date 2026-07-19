@@ -37,9 +37,9 @@ def _ctx() -> ConsultantContext:
     )
 
 
-def test_questions_list_has_nine_unique_entries():
-    assert len(QUESTIONS) == 9
-    assert len(set(q for q, _ in QUESTIONS)) == 9
+def test_questions_list_has_seventeen_unique_entries():
+    assert len(QUESTIONS) == 17
+    assert len(set(q for q, _ in QUESTIONS)) == 17
 
 
 def test_route_question_returns_none_for_empty_or_unrelated_text():

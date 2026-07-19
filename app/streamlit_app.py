@@ -24,12 +24,18 @@ renderers, since the Executive Briefing, AI Analyst, Comparisons, Cost
 Intelligence, and Carbon pages all need the exact same objects -- computing
 them twice per fuel would let the surfaces silently drift out of sync.
 
-Sidebar controls live in ``app/sidebar.py``. Tab rendering logic lives in
-``tabs_core.py`` (Phase 1), ``tabs_phase2.py`` (Phase 2), ``tabs_phase3.py``
-(Phase 3), ``tabs_briefing.py``/``tabs_analyst.py`` (decision-support), and
-``tabs_fuel.py``/``tabs_comparisons.py``/``tabs_cost.py``/``tabs_carbon.py``
-(Phase 4) -- this module is just top-level orchestration, kept under ~300
-lines as the app grows.
+Navigation is organized around user questions (Home / How did this month
+compare? / What drives my usage? / ...), with the month-comparison journey
+(``tabs_month.py``, backed by ``src.monthly_comparison``) as the primary
+surface: latest complete month vs. the same calendar month last year.
+Whole-period and method-level views remain available under Long-term trends
+and Data and methods. Sidebar controls live in ``app/sidebar.py``; tab
+rendering logic lives in ``tabs_core.py`` (Phase 1), ``tabs_phase2.py``
+(Phase 2), ``tabs_phase3.py`` (Phase 3), ``tabs_briefing.py``/
+``tabs_analyst.py`` (decision-support), ``tabs_fuel.py``/
+``tabs_comparisons.py``/``tabs_cost.py``/``tabs_carbon.py`` (Phase 4), and
+``tabs_month.py`` (month comparison) -- this module is just top-level
+orchestration.
 """
 
 from __future__ import annotations
@@ -59,6 +65,7 @@ from tabs_core import (  # noqa: E402
 )
 from tabs_cost import render_cost_intelligence  # noqa: E402
 from tabs_fuel import render_fuel_breakdown  # noqa: E402
+from tabs_month import build_month_context, render_month_comparison  # noqa: E402
 from tabs_phase2 import (  # noqa: E402
     render_change_points,
     render_seasonality,
@@ -86,8 +93,8 @@ def main() -> None:
     st.title("AI Home Energy Intelligence Platform")
     st.caption(
         "An evidence-based energy analyst, not a statistics dashboard -- built on real OVO Energy "
-        "monthly billing exports. Start with Executive Summary or AI Analyst; the other tabs hold "
-        "the underlying analysis every conclusion there is traceable to."
+        "monthly billing exports. Start with Home or 'How did this month compare?'; the other "
+        "tabs hold the underlying analysis every conclusion there is traceable to."
     )
 
     (
@@ -172,6 +179,17 @@ def main() -> None:
         fuel_energy_results,
         fuel_anomalies_all,
     )
+
+    # The month-comparison state (selected month / fuel / mode) is resolved once here from
+    # session state, so Home, the comparison page, and the Consultant describe the exact
+    # same comparison objects on every rerun -- never stale, never diverging (audit F2/F7).
+    month_ctx = build_month_context(
+        fuel_frames,
+        fuel_merged if weather_enabled else dict.fromkeys(fuel_frames),
+        fuel_energy_results if weather_enabled else dict.fromkeys(fuel_frames),
+        weather_enabled,
+    )
+
     consultant_ctx = ConsultantContext(
         analyst_report=analyst_report,
         clean=clean,
@@ -187,6 +205,10 @@ def main() -> None:
             if weather_interpretations
             else None
         ),
+        selected_comparison_month=month_ctx.selected_month,
+        comparison_mode=month_ctx.mode,
+        comparison_fuel=month_ctx.fuel,
+        fuel_merged=fuel_merged if weather_enabled else None,
     )
 
     # --- Household Energy Review download (sidebar, two-step) -----------------------------
@@ -239,92 +261,103 @@ def main() -> None:
             "print-quality PDF version."
         )
 
+    # Navigation is organized around the questions a homeowner actually asks; the
+    # whole-period and method-level surfaces all remain, one level down (Long-term
+    # trends / Data and methods) -- demoted, never deleted.
     (
-        tab_summary,
-        tab_consultant,
-        tab_analyst,
-        tab_consumption,
-        tab_fuel,
-        tab_comparisons,
-        tab_cost,
-        tab_carbon,
-        tab_stats,
-        tab_seasonality,
-        tab_weather,
-        tab_changepoints,
+        tab_home,
+        tab_month,
+        tab_drivers,
+        tab_costs_carbon,
+        tab_unusual,
         tab_forecast,
-        tab_anomalies,
-        tab_quality,
+        tab_consultant,
+        tab_long_term,
+        tab_methods,
     ) = st.tabs(
         [
-            "Executive Summary",
-            "AI Consultant",
-            "AI Analyst",
-            "Consumption Analysis",
-            "Fuel Breakdown",
-            "Comparisons",
-            "Cost Intelligence",
-            "Carbon",
-            "Statistical Analysis",
-            "How the Seasons Affect Usage",
-            "Weather Impact",
-            "Usage Shifts",
-            "Forecasting",
-            "Unusual Months",
-            "Data Quality",
+            "Home",
+            "How did this month compare?",
+            "What drives my usage?",
+            "Costs and carbon",
+            "Did anything unusual happen?",
+            "What should I expect next?",
+            "Ask the Energy Consultant",
+            "Long-term trends",
+            "Data and methods",
         ]
     )
-    with tab_summary:
-        render_executive_briefing(clean, analyst_report, forecast_12mo, forecast_error)
-    with tab_consultant:
-        render_consultant(consultant_ctx)
-    with tab_analyst:
-        render_ai_analyst(clean, merged, energy_result, anomalies, analyst_report)
-    with tab_consumption:
-        render_consumption_analysis(period_df)
-    with tab_fuel:
-        render_fuel_breakdown(
-            fuel_frames["electricity"], fuel_frames["gas"], fuel_cross_check_warnings or []
+    with tab_home:
+        render_executive_briefing(clean, analyst_report, forecast_12mo, forecast_error, month_ctx)
+    with tab_month:
+        render_month_comparison(month_ctx, fuel_frames, fuel_anomalies_all)
+    with tab_drivers:
+        sub_fuel, sub_seasons, sub_weather = st.tabs(
+            ["Fuel breakdown", "Seasons", "Weather impact"]
         )
-    with tab_comparisons:
-        render_comparisons(
-            fuel_frames,
-            fuel_stl_results,
-            fuel_anomalies_all,
-            fuel_merged,
-            fuel_energy_results,
-            weather_enabled,
-            multi_fuel_forecasts,
-        )
-    with tab_cost:
-        render_cost_intelligence(fuel_frames, weather_enabled)
-    with tab_carbon:
-        render_carbon(fuel_frames, fuel_merged, fuel_energy_results, weather_enabled)
-    with tab_stats:
-        render_statistical_analysis(period_df)
-    with tab_seasonality:
-        render_seasonality(stl_result, stl_error, clean, anomalies)
-    with tab_weather:
-        render_weather_adjustment(
-            weather_enabled, merged, energy_result, weather_error, fuel, weather_context_df
-        )
-    with tab_changepoints:
-        render_change_points(stl_result, stl_error, changepoints, clean, merged, energy_result, fuel)
+        with sub_fuel:
+            render_fuel_breakdown(
+                fuel_frames["electricity"], fuel_frames["gas"], fuel_cross_check_warnings or []
+            )
+        with sub_seasons:
+            render_seasonality(stl_result, stl_error, clean, anomalies)
+        with sub_weather:
+            render_weather_adjustment(
+                weather_enabled, merged, energy_result, weather_error, fuel, weather_context_df
+            )
+    with tab_costs_carbon:
+        sub_cost, sub_carbon = st.tabs(["Costs", "Carbon"])
+        with sub_cost:
+            render_cost_intelligence(fuel_frames, weather_enabled)
+        with sub_carbon:
+            render_carbon(fuel_frames, fuel_merged, fuel_energy_results, weather_enabled)
+    with tab_unusual:
+        sub_anomalies, sub_shifts = st.tabs(["Unusual months", "Usage shifts"])
+        with sub_anomalies:
+            render_anomalies(
+                clean,
+                stl_error,
+                anomalies,
+                merged,
+                energy_result,
+                weather_interpretations,
+                weather_context_df,
+                daily_weather,
+            )
+        with sub_shifts:
+            render_change_points(
+                stl_result, stl_error, changepoints, clean, merged, energy_result, fuel
+            )
     with tab_forecast:
         render_forecasting(clean, horizon, model_choice)
-    with tab_anomalies:
-        render_anomalies(
-            clean,
-            stl_error,
-            anomalies,
-            merged,
-            energy_result,
-            weather_interpretations,
-            weather_context_df,
-            daily_weather,
+    with tab_consultant:
+        render_consultant(consultant_ctx)
+    with tab_long_term:
+        sub_consumption, sub_comparisons = st.tabs(
+            ["Consumption over time", "Fuel comparisons (all years)"]
         )
-    with tab_quality:
-        render_data_quality(report, fuel_cross_check_warnings)
+        with sub_consumption:
+            render_consumption_analysis(period_df)
+        with sub_comparisons:
+            render_comparisons(
+                fuel_frames,
+                fuel_stl_results,
+                fuel_anomalies_all,
+                fuel_merged,
+                fuel_energy_results,
+                weather_enabled,
+                multi_fuel_forecasts,
+            )
+    with tab_methods:
+        sub_analyst, sub_stats, sub_quality = st.tabs(
+            ["Full report (AI Analyst)", "Statistical analysis", "Data quality"]
+        )
+        with sub_analyst:
+            render_ai_analyst(clean, merged, energy_result, anomalies, analyst_report)
+        with sub_stats:
+            render_statistical_analysis(period_df)
+        with sub_quality:
+            render_data_quality(report, fuel_cross_check_warnings)
 
 
 if __name__ == "__main__":
