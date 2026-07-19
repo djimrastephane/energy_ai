@@ -20,6 +20,7 @@ from src.consultant import (
     answer_fuel_focus,
     answer_last_month_anomaly,
     answer_savings,
+    answer_severe_weather,
     answer_winter_comparison,
 )
 
@@ -33,6 +34,7 @@ QUESTIONS: list[tuple[str, ConsultantHandler]] = [
     ("How does my usage compare to average?", answer_benchmark),
     ("What's my carbon footprint?", answer_carbon),
     ("Was last month's usage normal, or an anomaly?", answer_last_month_anomaly),
+    ("Could severe weather explain my unusual months?", answer_severe_weather),
     ("Where can I realistically save money?", answer_savings),
 ]
 
@@ -58,6 +60,25 @@ _KEYWORDS: dict[str, list[str]] = {
         "compared to average",
     ],
     "What's my carbon footprint?": ["carbon", "co2", "emissions", "footprint"],
+    # Must be checked before the last-month question: "Was the month unusually windy?"
+    # contains "unusual", which would otherwise route to the anomaly handler first.
+    "Could severe weather explain my unusual months?": [
+        "severe weather",
+        "bad weather",
+        "snow",
+        "blizzard",
+        "storm",
+        "windy",
+        "wind",
+        "gust",
+        "kept me at home",
+        "stuck at home",
+        "stayed home because",
+        "heavy rain",
+        "heating use higher",
+        "heating higher than expected",
+        "higher than expected",
+    ],
     "Was last month's usage normal, or an anomaly?": ["last month", "anomaly", "unusual", "was it normal"],
     "Where can I realistically save money?": ["save money", "saving", "reduce my bill", "lower my bill", "cut cost"],
 }

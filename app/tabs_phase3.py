@@ -11,12 +11,15 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 from charts_phase3 import anomaly_scatter, forecast_fan_chart, model_comparison_bar
+from tabs_weather_context import render_severe_weather_sections
 
 from src.anomalies import Anomaly, interpret_anomalies
 from src.energy_signature import EnergySignatureResult
 from src.forecast_evaluation import ForecastResult, generate_forecast
 from src.ingestion import EnergyType
 from src.investigation import build_investigation_checklist
+from src.weather_context import WeatherContextClassification
+from src.weather_interpretation import UnusualMonthInterpretation
 
 
 @st.cache_data(show_spinner="Cross-validating forecasting models...")
@@ -110,6 +113,12 @@ def render_anomalies(
     anomalies: list[Anomaly],
     merged: pd.DataFrame | None,
     energy_result: EnergySignatureResult | None,
+    weather_interpretations: dict[
+        pd.Timestamp, tuple[WeatherContextClassification, UnusualMonthInterpretation]
+    ]
+    | None = None,
+    weather_context_df: pd.DataFrame | None = None,
+    daily_weather: pd.DataFrame | None = None,
 ) -> None:
     st.caption(
         "Detected on the deseasonalized STL residual, so a normal winter isn't mistaken for "
@@ -153,3 +162,12 @@ def render_anomalies(
             for item in checklist.items:
                 marker = "✅" if item.checked else "⬜"
                 st.write(f"{marker} **{item.label}** -- {item.reason}")
+
+    if weather_interpretations and weather_context_df is not None and daily_weather is not None:
+        st.divider()
+        render_severe_weather_sections(anomalies, weather_interpretations, weather_context_df, daily_weather)
+    elif anomalies:
+        st.caption(
+            "Turn on 'Weather adjustment' in the sidebar to also see each flagged month's "
+            "severe-weather context (snow, strong wind, heavy rain)."
+        )

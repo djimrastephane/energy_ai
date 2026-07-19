@@ -1,32 +1,69 @@
-
-"""Fetch historical daily temperature and derive monthly heating/cooling degree days.
+"""Fetch historical daily weather and derive monthly heating/cooling degree days.
 
 Weather data comes from the free Open-Meteo archive API (no key required)
 and is cached to disk so the app works offline after the first successful
-fetch. The resulting degree days feed the "energy signature" regression in
-:mod:`src.energy_signature`.
+fetch. Daily mean temperature feeds the "energy signature" regression in
+:mod:`src.energy_signature`; the additional snow/precipitation/wind fields
+feed the Weather Context Engine (:mod:`src.weather_context`) as *contextual
+evidence only* -- they are deliberately not regression predictors (see
+``docs/weather_context.md``).
+
+Data contract for the daily frame returned by :func:`fetch_daily_weather`
+(exact Open-Meteo variable, unit, and missing-value policy per column) is
+``DAILY_WEATHER_SCHEMA`` below. Missing *temperature* makes a day not count
+toward monthly weather coverage; missing context fields (snow/wind/rain)
+stay ``NaN`` -- they are never silently converted to zero, because for
+these variables zero means "none observed", not "not available".
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import requests
 
+from config import SETTINGS
 from src.utils import get_logger
 
 logger = get_logger(__name__)
 
 _ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 
+# column name -> (Open-Meteo daily variable, unit, required, description)
+# "required": the fetch fails without it. Non-required fields degrade to an all-NaN
+# column with a logged warning, and src.weather_context marks affected months
+# ``weather_context_complete = False``.
+DAILY_WEATHER_SCHEMA: dict[str, tuple[str, str, bool, str]] = {
+    "temp_mean_c": ("temperature_2m_mean", "°C", True, "Daily mean 2 m air temperature"),
+    "snowfall_cm": ("snowfall_sum", "cm", False, "Total daily snowfall; 0 = none observed"),
+    "snow_depth_m": ("snow_depth_mean", "m", False, "Mean snow depth on the ground"),
+    "precipitation_mm": ("precipitation_sum", "mm", False, "Total daily precipitation (rain + snow water equivalent)"),
+    "wind_speed_max_kmh": ("wind_speed_10m_max", "km/h", False, "Maximum sustained 10 m wind speed"),
+    "wind_gust_max_kmh": ("wind_gusts_10m_max", "km/h", False, "Maximum 10 m wind gust"),
+}
+
+# Bump when the fetched schema changes so older caches are never mistaken for new ones.
+# v1 (implicit, unversioned filename): temperature only. v2: the six-field schema above.
+_CACHE_SCHEMA_VERSION = 2
+
 
 class WeatherFetchError(RuntimeError):
     """Raised when weather data can't be fetched and no usable cache exists."""
 
 
-def _cache_path(cache_dir: Path, lat: float, lon: float) -> Path:
-    return cache_dir / f"weather_daily_{lat:.4f}_{lon:.4f}.csv"
+def _cache_path(cache_dir: Path, lat: float, lon: float, timezone: str) -> Path:
+    """v2 cache identity includes schema version and timezone.
+
+    Timezone matters because Open-Meteo aggregates daily values in the requested
+    timezone -- the same coordinates fetched under a different timezone would have
+    slightly different daily boundaries. v1 caches (``weather_daily_<lat>_<lon>.csv``,
+    temperature-only) use a different filename and are left untouched: v2 simply
+    fetches fresh once and uses its own file from then on.
+    """
+    tz_slug = timezone.replace("/", "-")
+    return cache_dir / f"weather_daily_v{_CACHE_SCHEMA_VERSION}_{lat:.4f}_{lon:.4f}_{tz_slug}.csv"
 
 
 def _load_cache(path: Path) -> pd.DataFrame | None:
@@ -37,6 +74,9 @@ def _load_cache(path: Path) -> pd.DataFrame | None:
     except (OSError, ValueError, KeyError):
         logger.warning("Could not read weather cache at %s; ignoring it", path)
         return None
+    if missing := [c for c in DAILY_WEATHER_SCHEMA if c not in df.columns]:
+        logger.warning("Weather cache at %s lacks columns %s; ignoring it", path, missing)
+        return None
     return df.sort_values("date").reset_index(drop=True)
 
 
@@ -45,24 +85,113 @@ def _save_cache(path: Path, df: pd.DataFrame) -> None:
     df.sort_values("date").to_csv(path, index=False)
 
 
-def _request_daily_temperature(lat: float, lon: float, start: str, end: str, tz: str) -> pd.DataFrame:
+def _parse_daily_response(response: requests.Response) -> pd.DataFrame:
+    """Validate an Open-Meteo daily response and convert it to the schema frame.
+
+    Never trusts ``response.json()["daily"]`` blindly: handles invalid JSON,
+    API error payloads, a missing/short ``daily`` block, missing fields, and
+    unequal array lengths, converting each into :class:`WeatherFetchError`
+    with the original exception preserved as the cause where there is one.
+    """
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise WeatherFetchError(f"Open-Meteo returned invalid JSON: {exc}") from exc
+
+    if not isinstance(payload, dict):
+        raise WeatherFetchError(f"Open-Meteo returned an unexpected payload type: {type(payload).__name__}")
+    if payload.get("error"):
+        raise WeatherFetchError(f"Open-Meteo returned an error payload: {payload.get('reason', 'no reason given')}")
+
+    daily = payload.get("daily")
+    if not isinstance(daily, dict) or "time" not in daily:
+        raise WeatherFetchError("Open-Meteo response has no usable 'daily' block.")
+
+    try:
+        dates = pd.to_datetime(daily["time"])
+    except (ValueError, TypeError) as exc:
+        raise WeatherFetchError(f"Open-Meteo returned unparseable dates: {exc}") from exc
+
+    frame: dict[str, object] = {"date": dates}
+    for column, (api_field, _unit, required, _desc) in DAILY_WEATHER_SCHEMA.items():
+        values = daily.get(api_field)
+        if values is None:
+            if required:
+                raise WeatherFetchError(f"Open-Meteo response is missing required field '{api_field}'.")
+            logger.warning(
+                "Open-Meteo response is missing optional field '%s'; %s will be NaN "
+                "(weather context for affected months will be marked incomplete)",
+                api_field,
+                column,
+            )
+            frame[column] = np.full(len(dates), np.nan)
+            continue
+        if len(values) != len(dates):
+            raise WeatherFetchError(
+                f"Open-Meteo field '{api_field}' has {len(values)} values for {len(dates)} dates."
+            )
+        # JSON nulls arrive as None -> NaN. Deliberately NOT filled with 0: for snow/wind/
+        # rain, zero means "none observed" while NaN means "not available".
+        frame[column] = pd.array(values, dtype="float64")
+
+    return pd.DataFrame(frame)
+
+
+def validate_daily_weather(df: pd.DataFrame) -> list[str]:
+    """Check the daily frame against the schema's plausibility rules, in place.
+
+    Hard violations (missing required columns, duplicate dates) raise
+    :class:`WeatherFetchError`. Implausible values (negative snowfall/
+    precipitation, snow depth or wind beyond the configured bounds) are set
+    to ``NaN`` -- never silently kept or clipped to a plausible-looking value
+    -- and reported in the returned warnings list.
+    """
+    if missing := [c for c in ("date", *DAILY_WEATHER_SCHEMA) if c not in df.columns]:
+        raise WeatherFetchError(f"Daily weather frame is missing columns: {missing}")
+    if df["date"].duplicated().any():
+        raise WeatherFetchError("Daily weather frame contains duplicate dates.")
+
+    bounds = SETTINGS.weather_context
+    warnings: list[str] = []
+    checks = [
+        ("snowfall_cm", lambda s: s < 0, "negative snowfall"),
+        ("precipitation_mm", lambda s: s < 0, "negative precipitation"),
+        ("snow_depth_m", lambda s: (s < 0) | (s > bounds.max_plausible_snow_depth_m), "implausible snow depth"),
+        ("wind_speed_max_kmh", lambda s: (s < 0) | (s > bounds.max_plausible_wind_kmh), "implausible wind speed"),
+        ("wind_gust_max_kmh", lambda s: (s < 0) | (s > bounds.max_plausible_wind_kmh), "implausible wind gust"),
+    ]
+    for column, is_bad, label in checks:
+        bad = is_bad(df[column]).fillna(False)
+        if bad.any():
+            warnings.append(f"{int(bad.sum())} day(s) with {label} set to NaN.")
+            df.loc[bad, column] = np.nan
+    n_missing_temp = int(df["temp_mean_c"].isna().sum())
+    if n_missing_temp:
+        warnings.append(
+            f"{n_missing_temp} day(s) have no mean temperature; they don't count toward monthly weather coverage."
+        )
+    for w in warnings:
+        logger.warning("Daily weather validation: %s", w)
+    return warnings
+
+
+def _request_daily_weather(lat: float, lon: float, start: str, end: str, tz: str) -> pd.DataFrame:
     params = {
         "latitude": lat,
         "longitude": lon,
         "start_date": start,
         "end_date": end,
-        "daily": "temperature_2m_mean",
+        "daily": ",".join(api_field for api_field, *_ in DAILY_WEATHER_SCHEMA.values()),
         "timezone": tz,
     }
     response = requests.get(_ARCHIVE_URL, params=params, timeout=30)
     response.raise_for_status()
-    daily = response.json()["daily"]
-    return pd.DataFrame(
-        {"date": pd.to_datetime(daily["time"]), "temp_mean_c": daily["temperature_2m_mean"]}
-    )
+    df = _parse_daily_response(response)
+    validate_daily_weather(df)
+    return df
 
 
-def fetch_daily_temperature(
+def fetch_daily_weather(
     lat: float,
     lon: float,
     start: pd.Timestamp | str,
@@ -70,14 +199,15 @@ def fetch_daily_temperature(
     timezone: str,
     cache_dir: Path,
 ) -> pd.DataFrame:
-    """Return daily mean temperature for ``[start, end]``, using and updating a disk cache.
+    """Return daily weather (see ``DAILY_WEATHER_SCHEMA``) for ``[start, end]``, disk-cached.
 
     Behaviour: a cache that already fully covers the requested range is used
     without any network call. Otherwise Open-Meteo is queried for the full
     range and the result is merged into the cache. If the request fails
-    (network error, non-2xx response), falls back to whatever cache exists
-    (logging a warning that it may be incomplete/stale); with no cache at
-    all, raises :class:`WeatherFetchError` rather than crashing the caller.
+    (network error, non-2xx response, malformed response), falls back to
+    whatever cache exists (logging a warning that it may be incomplete/
+    stale); with no cache at all, raises :class:`WeatherFetchError` rather
+    than crashing the caller.
 
     The archive API has no data for future dates and only a ~1 day lag on
     recent ones, so ``end`` is silently clipped to yesterday if it's later
@@ -85,6 +215,10 @@ def fetch_daily_temperature(
     still in progress. Callers that need to know a month's weather coverage
     is incomplete should check the ``n_days`` column from
     :func:`compute_monthly_degree_days` rather than relying on ``end`` alone.
+
+    A full-range refetch (not a missing-range delta fetch) happens at most
+    once per new consumption month, so the added transfer is small; delta
+    fetching is a documented deferral in ``docs/weather_context.md``.
     """
     start, end = pd.Timestamp(start), pd.Timestamp(end)
     yesterday = pd.Timestamp.now().normalize() - pd.Timedelta(days=1)
@@ -96,7 +230,7 @@ def fetch_daily_temperature(
             f"Requested start date {start.date()} is after the latest available weather date "
             f"{end.date()}."
         )
-    cache_path = _cache_path(cache_dir, lat, lon)
+    cache_path = _cache_path(cache_dir, lat, lon, timezone)
     cached = _load_cache(cache_path)
 
     if cached is not None and cached["date"].min() <= start and cached["date"].max() >= end:
@@ -104,10 +238,10 @@ def fetch_daily_temperature(
         return cached[(cached["date"] >= start) & (cached["date"] <= end)].reset_index(drop=True)
 
     try:
-        fetched = _request_daily_temperature(
+        fetched = _request_daily_weather(
             lat, lon, start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"), timezone
         )
-    except requests.RequestException as exc:
+    except (requests.RequestException, WeatherFetchError) as exc:
         logger.warning("Open-Meteo request failed (%s); falling back to cache if available", exc)
         if cached is not None:
             return cached[(cached["date"] >= start) & (cached["date"] <= end)].reset_index(drop=True)
@@ -126,10 +260,11 @@ def compute_monthly_degree_days(
     """Aggregate daily temperature into monthly heating/cooling degree days.
 
     HDD(day) = max(0, base_heat_c - temp_mean_c); CDD(day) = max(0, temp_mean_c - base_cool_c).
-    Includes an ``n_days`` count of how many days of temperature data went
-    into each month, so callers can detect and exclude months where weather
-    coverage is incomplete (e.g. the current in-progress month) rather than
-    silently under-counting their degree days.
+    Includes an ``n_days`` count of how many days of *non-null* temperature
+    went into each month, so callers can detect and exclude months where
+    weather coverage is incomplete (e.g. the current in-progress month, or a
+    month with null temperatures in the API response) rather than silently
+    under-counting their degree days.
     """
     df = daily_df.copy()
     df["hdd"] = (base_heat_c - df["temp_mean_c"]).clip(lower=0)
@@ -142,7 +277,7 @@ def compute_monthly_degree_days(
             hdd=("hdd", "sum"),
             cdd=("cdd", "sum"),
             avg_temp_c=("temp_mean_c", "mean"),
-            n_days=("date", "count"),
+            n_days=("temp_mean_c", "count"),  # count() skips NaN: null-temp days aren't coverage
         )
         .reset_index()
     )

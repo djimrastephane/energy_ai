@@ -280,6 +280,46 @@ data quality), generated on demand from the sidebar.
   since jinja2 already ships with Streamlit.
 - Coverage: 97% on `src/`, 306 tests total (up from 295).
 
+## Weather Context Engine (snow, wind, severe weather) -- done
+
+Contextual explanation of unusual months from extended Open-Meteo daily
+fields (snowfall, snow depth, precipitation, max wind/gusts) -- kept
+strictly out of the energy-signature regression (HDD/CDD only, unchanged).
+See `docs/weather_context.md` for the full data dictionary, thresholds
+(config-owned, conservative UK conventions), cache v2 migration, robust
+relative-severity bands, and the A-D interpretation patterns.
+
+- `src/weather.py` extended: 6-field fetch with hard response validation
+  (invalid JSON, error payloads, missing fields, unequal lengths -> typed
+  `WeatherFetchError` with cause preserved), v2 cache identity including
+  schema version + timezone (v1 files ignored, untouched). One latent
+  defect found and fixed while extending: a null-temperature day used to
+  count toward monthly weather coverage while contributing zero degree
+  days -- coverage now counts non-null temperature days only.
+- `src/weather_context.py` + `src/weather_interpretation.py`: monthly
+  aggregation, strict-percentile severity bands (a uniform history reads
+  as Typical -- caught by tests via 31- vs 30-day precipitation totals),
+  deterministic classification with facts + confidence + limitation, and
+  hedged pattern A-D interpretations that never assert behavioural causes.
+- Surfaced in: Unusual Months (per-anomaly context, top month inline,
+  advanced details expander), Weather Impact (history summary; cooling
+  hidden from the main view -- negligible for this household), and a 9th
+  Consultant question routed before the "unusual" keyword to avoid a
+  collision.
+- Real-data: December 2024's 3-method spike = Storm Darragh-period gusts
+  (5 severe-gust days, max 91 km/h) *plus* +219 kWh residual -> "may have
+  contributed, does not explain the full increase". December 2023 (Extreme
+  snowfall band, residual -22 kWh) correctly stays a non-event.
+- Performance: cold fetch 4.4 s once; disk cache hit 2 ms with zero
+  network (tested); weather-on warm rerun 0.30 s; context aggregation +
+  classification ~30 ms total. Cache grew 16 KB -> 39 KB.
+- Coverage: 97% on `src/`, 376 tests total (up from 324; the app smoke
+  suite now also exercises the weather-ON path via a mocked fetch).
+- Deferred: delta-fetching only missing date ranges (full-range refetch is
+  at most once per new month at trivial size); weather context in the HTML
+  report; adding severe-weather variables to the regression (requires a
+  formal model-selection study first, per the design principle).
+
 ## Phase 5 -- explainability
 
 - Feature importance / SHAP for the regression and ML forecast models.

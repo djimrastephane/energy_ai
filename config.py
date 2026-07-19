@@ -71,6 +71,42 @@ class WeatherConfig:
 
 
 @dataclass(frozen=True)
+class WeatherContextThresholds:
+    """Day-classification thresholds for the Weather Context Engine (``src.weather_context``).
+
+    These classify *days* into snow/heavy-snow/heavy-rain/strong-wind/severe-gust categories
+    for contextual explanation of unusual energy months. They deliberately do NOT feed the
+    energy-signature regression -- severe weather is contextual evidence only (see
+    ``docs/weather_context.md`` for the design rationale).
+
+    Sources are approximate UK conventions, chosen conservatively so a "severe" label
+    understates rather than overstates:
+
+    - ``heavy_snow_day_cm``: 5 cm/day. UK Met Office snow warnings commonly reference
+      accumulations of 2-5+ cm; 5 cm/day is the conservative upper end.
+    - ``heavy_rain_day_mm``: 25 mm/day. Met Office guidance describes "heavy rain" warnings
+      around 25 mm within a few hours; 25 mm over a whole day is therefore conservative.
+    - ``strong_wind_day_kmh``: 62 km/h max sustained wind -- the Beaufort scale's gale
+      (force 8) threshold (62-74 km/h).
+    - ``severe_gust_day_kmh``: 80 km/h max gust (~50 mph) -- the typical trigger level for
+      a Met Office yellow wind warning's headline gust figures.
+    - ``snow_day_cm``: any measurable snowfall (> 0 cm) counts as a snow day.
+
+    Plausibility bounds (used by validation, not classification): UK 10 m gust record is
+    ~228 km/h (Fraserburgh 1989, low-altitude); 300 km/h allows margin without accepting
+    nonsense. Snow depth of 6 m exceeds any UK lowland record by a wide margin.
+    """
+
+    snow_day_cm: float = 0.0  # snowfall strictly greater than this = a snow day
+    heavy_snow_day_cm: float = 5.0
+    heavy_rain_day_mm: float = 25.0
+    strong_wind_day_kmh: float = 62.0
+    severe_gust_day_kmh: float = 80.0
+    max_plausible_snow_depth_m: float = 6.0
+    max_plausible_wind_kmh: float = 300.0
+
+
+@dataclass(frozen=True)
 class BenchmarkConfig:
     """Published UK/Scotland average annual consumption, for the Cost Intelligence tab's
     "below/average/above average" benchmarking (never a single "Energy Score" -- see
@@ -128,6 +164,7 @@ class Settings:
     validation: ValidationThresholds = field(default_factory=ValidationThresholds)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     weather: WeatherConfig = field(default_factory=WeatherConfig)
+    weather_context: WeatherContextThresholds = field(default_factory=WeatherContextThresholds)
     benchmark: BenchmarkConfig = field(default_factory=BenchmarkConfig)
     carbon: CarbonConfig = field(default_factory=CarbonConfig)
 

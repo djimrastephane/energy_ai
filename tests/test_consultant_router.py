@@ -37,9 +37,9 @@ def _ctx() -> ConsultantContext:
     )
 
 
-def test_questions_list_has_eight_unique_entries():
-    assert len(QUESTIONS) == 8
-    assert len(set(q for q, _ in QUESTIONS)) == 8
+def test_questions_list_has_nine_unique_entries():
+    assert len(QUESTIONS) == 9
+    assert len(set(q for q, _ in QUESTIONS)) == 9
 
 
 def test_route_question_returns_none_for_empty_or_unrelated_text():
@@ -69,6 +69,11 @@ def test_route_question_matches_natural_phrasings():
         ("whats my carbon footprint", "What's my carbon footprint?"),
         ("was last month normal", "Was last month's usage normal, or an anomaly?"),
         ("where can I save money", "Where can I realistically save money?"),
+        ("Was there severe weather that month?", "Could severe weather explain my unusual months?"),
+        ("Did snow explain the increase?", "Could severe weather explain my unusual months?"),
+        ("Could bad weather have kept me at home?", "Could severe weather explain my unusual months?"),
+        ("Was the month unusually windy?", "Could severe weather explain my unusual months?"),
+        ("Why was heating use higher than expected?", "Could severe weather explain my unusual months?"),
     ]
     for phrase, expected_question in cases:
         result = route_question(phrase, ctx)

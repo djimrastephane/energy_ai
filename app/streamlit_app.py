@@ -70,9 +70,14 @@ from tabs_phase3 import (  # noqa: E402
     render_anomalies,
     render_forecasting,
 )
+from tabs_weather_context import (  # noqa: E402
+    build_weather_interpretations,
+    load_weather_context,
+)
 
 from src.changepoints import detect_changepoints  # noqa: E402
 from src.consultant import ConsultantContext  # noqa: E402
+from src.weather import WeatherFetchError  # noqa: E402
 
 st.set_page_config(page_title="AI Home Energy Intelligence Platform", layout="wide")
 
@@ -129,6 +134,20 @@ def main() -> None:
     except ValueError as exc:
         forecast_12mo, forecast_error = None, str(exc)
 
+    # Weather Context Engine (snow/wind/precipitation): computed once here so the Unusual
+    # Months tab, the Weather Impact summary, and the Consultant all read the same objects.
+    # Fuel-independent (weather is weather), and a disk-cache hit after the first fetch.
+    weather_context_df = daily_weather = weather_interpretations = None
+    if weather_enabled:
+        try:
+            weather_context_df, daily_weather = load_weather_context(clean)
+        except (WeatherFetchError, ValueError) as exc:
+            st.sidebar.caption(f"Weather context unavailable: {exc}")
+        if weather_context_df is not None and anomalies:
+            weather_interpretations = build_weather_interpretations(
+                anomalies, weather_context_df, energy_result, merged, fuel_anomalies_all, fuel_frames
+            )
+
     # Owned here (not in session state) so every consumer sees the same, current-data-consistent
     # result: the Cost Intelligence button sets the request flag and reruns, and the cached
     # generator makes this a cache hit on every rerun after the first (audit finding F7).
@@ -163,6 +182,11 @@ def main() -> None:
         multi_fuel_forecasts=multi_fuel_forecasts,
         weather_enabled=weather_enabled,
         fuel_label=fuel_label,
+        weather_interpretations=(
+            {date: interp for date, (_cls, interp) in weather_interpretations.items()}
+            if weather_interpretations
+            else None
+        ),
     )
 
     # --- Household Energy Review download (sidebar, two-step) -----------------------------
@@ -242,7 +266,7 @@ def main() -> None:
             "Cost Intelligence",
             "Carbon",
             "Statistical Analysis",
-            "Seasonal Patterns",
+            "How the Seasons Affect Usage",
             "Weather Impact",
             "Usage Shifts",
             "Forecasting",
@@ -279,15 +303,26 @@ def main() -> None:
     with tab_stats:
         render_statistical_analysis(period_df)
     with tab_seasonality:
-        render_seasonality(stl_result, stl_error)
+        render_seasonality(stl_result, stl_error, clean, anomalies)
     with tab_weather:
-        render_weather_adjustment(weather_enabled, merged, energy_result, weather_error, fuel)
+        render_weather_adjustment(
+            weather_enabled, merged, energy_result, weather_error, fuel, weather_context_df
+        )
     with tab_changepoints:
         render_change_points(stl_result, stl_error, changepoints, clean, merged, energy_result, fuel)
     with tab_forecast:
         render_forecasting(clean, horizon, model_choice)
     with tab_anomalies:
-        render_anomalies(clean, stl_error, anomalies, merged, energy_result)
+        render_anomalies(
+            clean,
+            stl_error,
+            anomalies,
+            merged,
+            energy_result,
+            weather_interpretations,
+            weather_context_df,
+            daily_weather,
+        )
     with tab_quality:
         render_data_quality(report, fuel_cross_check_warnings)
 

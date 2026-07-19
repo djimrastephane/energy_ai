@@ -85,12 +85,13 @@ energy_ai/
 │   ├── tabs_comparisons.py # Comparisons: Electricity vs. Gas vs. Total, side by side
 │   ├── tabs_cost.py       # Cost Intelligence: billing breakdown, forecast bills, benchmarking
 │   ├── tabs_carbon.py     # Carbon: estimated CO2e emissions
-│   ├── tabs_phase2.py     # Seasonal Patterns, Weather Impact, Usage Shifts
+│   ├── tabs_phase2.py     # How the Seasons Affect Usage, Weather Impact, Usage Shifts
 │   ├── tabs_phase3.py     # Forecasting, Unusual Months (anomaly detection)
 │   ├── charts.py          # reusable Plotly chart builders (Phase 1-2)
 │   ├── charts_phase3.py   # forecast fan chart, model comparison, anomaly scatter
 │   ├── charts_fuel.py     # electricity-vs-gas comparison charts
 │   ├── charts_comparisons.py # annual comparison chart across fuels
+│   ├── charts_seasonal.py # non-technical seasonal overview + calendar-month profile charts
 │   ├── report_html.py     # Household Energy Review: self-contained HTML report builder
 │   └── report_template.html # Jinja2 template for the report (screen + print CSS)
 ├── data/
@@ -102,7 +103,9 @@ energy_ai/
 │   ├── statistics.py        # descriptive stats (mean/median/CV/skew/CI/bootstrap)
 │   ├── kpis.py               # period-over-period KPI comparisons
 │   ├── decomposition.py      # STL trend/seasonal/residual + strength metrics
-│   ├── weather.py            # Open-Meteo fetch + degree days
+│   ├── weather.py            # Open-Meteo fetch (temp/snow/wind/rain) + degree days
+│   ├── weather_context.py    # monthly severe-weather context, severity bands, classifier
+│   ├── weather_interpretation.py # hedged weather-vs-energy interpretation (patterns A-D)
 │   ├── energy_signature.py   # degree-day regression + weather-adjusted annual comparison
 │   ├── changepoints.py       # PELT + CUSUM change-point detection
 │   ├── forecast_models.py    # naive, seasonal-naive, linear trend, Holt-Winters, SARIMA
@@ -216,7 +219,7 @@ re-verified empirically at ~5-6%.
 ## Weather adjustment
 
 The **Weather Impact** tab is opt-in (sidebar toggle, off by default)
-since it fetches historical daily temperature from the free Open-Meteo
+since it fetches historical daily weather from the free Open-Meteo
 archive API for the configured location (`config.py`'s `WeatherConfig`,
 currently Aberdeen/AB21). Results are cached to `data/processed/` so
 subsequent runs work offline. If the fetch fails and no cache exists, the
@@ -225,7 +228,26 @@ tab shows a clear warning instead of crashing the app. The regression
 standard "energy signature" method utility analysts use on billing data; a
 feature with zero variance in the data (e.g. cooling degree days in a
 climate that never crosses the cooling threshold) is reported as "couldn't
-be estimated" rather than a misleading p-value.
+be estimated" rather than a misleading p-value. Since this household shows
+effectively zero cooling variation, cooling charts stay out of the main
+view (available under Advanced diagnostics).
+
+### Weather Context Engine (snow, wind, severe weather)
+
+The same fetch also retrieves snowfall, snow depth, precipitation, and
+max wind/gust speeds -- used as **contextual evidence only** for unusual
+months, never as regression predictors (see `docs/weather_context.md` for
+the full data dictionary, thresholds, cache-versioning, and interpretation
+rules). Each flagged month on the **Unusual Months** tab gets: observed
+weather facts (snow days, gust maxima, severe-weather runs, rated against
+the household's own history), a hedged interpretation ("may have
+contributed", never "caused"), the residual left after temperature
+adjustment, and an explicit limitation -- monthly bills cannot prove
+behavioural causes like home working. The AI Consultant gained a matching
+question ("Could severe weather explain my unusual months?"). On the real
+data: December 2024's spike had 5 severe-gust days (Storm Darragh period)
+but remained +219 kWh above the temperature-adjusted expectation -- severe
+weather may have contributed; it does not explain the full increase.
 
 ## Fuel-level analysis: electricity vs. gas
 
