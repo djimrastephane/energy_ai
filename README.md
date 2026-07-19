@@ -10,6 +10,8 @@ deterministic and traceable to a specific computed number, carries a
 confidence rating with its reason, and says "not enough evidence" instead
 of guessing.
 
+![Home: this month compared with last year](docs/screenshots/home.jpg)
+
 ## What it can tell you
 
 Real answers from the author's real 35-month household dataset:
@@ -61,6 +63,20 @@ Real answers from the author's real 35-month household dataset:
   UK/Scotland benchmarking.
 - **Household Energy Review** -- a downloadable, self-contained HTML report
   (interactive charts, print stylesheet for Save-as-PDF).
+
+## Screenshots
+
+**How did this month compare?** -- the primary journey: latest complete
+month vs the same calendar month last year, with fuel and comparison-mode
+controls and the two-period chart.
+
+![Month comparison: June 2026 vs June 2025](docs/screenshots/month_comparison.jpg)
+
+**What should I expect next?** -- answer-first forecasting: expected use
+and confidence lead; the model and the plausible range live in collapsed
+detail sections, and the uncertainty band visibly fades with the horizon.
+
+![Forecast: expected use, confidence, and the fading plausible range](docs/screenshots/forecast.jpg)
 
 ## Quick start
 
