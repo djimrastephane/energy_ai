@@ -20,7 +20,7 @@ from src.report import (
 )
 from src.weather import (
     compute_monthly_degree_days,
-    fetch_daily_temperature,
+    fetch_daily_weather,
     merge_weather_with_consumption,
 )
 
@@ -158,7 +158,7 @@ def test_build_analyst_report_household_sections_on_real_data():
 
         start = clean["month_start"].min()
         end = clean["month_start"].max() + pd.offsets.MonthEnd(1)
-        daily = fetch_daily_temperature(w.latitude, w.longitude, start, end, w.timezone, SETTINGS.weather_cache_dir)
+        daily = fetch_daily_weather(w.latitude, w.longitude, start, end, w.timezone, SETTINGS.weather_cache_dir)
         monthly_dd = compute_monthly_degree_days(daily, w.base_heat_c, w.base_cool_c)
         merged = merge_weather_with_consumption(clean, monthly_dd)
         fuel_energy[fuel_key] = fit_energy_signature(merged)

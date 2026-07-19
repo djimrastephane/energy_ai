@@ -49,7 +49,7 @@ from src.energy_signature import fit_energy_signature
 from src.ingestion import FUEL_FILE_PATTERNS, discover_csv_files, load_all
 from src.preprocessing import run_pipeline
 from src.report import build_analyst_report
-from src.weather import compute_monthly_degree_days, fetch_daily_temperature, merge_weather_with_consumption
+from src.weather import compute_monthly_degree_days, fetch_daily_weather, merge_weather_with_consumption
 
 # --- data load, per fuel ---
 fuel_clean, fuel_report = {}, {}
@@ -80,7 +80,7 @@ with timed("weather fetch(disk-cached)+degree-days+merge+fit x3 fuels"):
     for fuel, df in fuel_clean.items():
         start = df["month_start"].min()
         end = df["month_start"].max() + pd.offsets.MonthEnd(1)
-        daily = fetch_daily_temperature(w.latitude, w.longitude, start, end, w.timezone, SETTINGS.weather_cache_dir)
+        daily = fetch_daily_weather(w.latitude, w.longitude, start, end, w.timezone, SETTINGS.weather_cache_dir)
         dd = compute_monthly_degree_days(daily, w.base_heat_c, w.base_cool_c)
         fuel_merged[fuel] = merge_weather_with_consumption(df, dd)
         fuel_energy[fuel] = fit_energy_signature(fuel_merged[fuel])

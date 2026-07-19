@@ -12,6 +12,7 @@ from src.consultant import (
     answer_fuel_focus,
     answer_last_month_anomaly,
     answer_savings,
+    answer_severe_weather,
     answer_winter_comparison,
 )
 from src.findings import Finding
@@ -262,3 +263,70 @@ def test_answer_savings_falls_back_to_collect_more_data_when_its_the_only_one():
     collect_more = _recommendation("Collect more historical data", "Keep tracking for another year...")
     ans = answer_savings(_ctx(analyst_report=_analyst_report(recommendations=[collect_more])))
     assert ans.answer == collect_more.action
+
+
+# --- answer_severe_weather --------------------------------------------------------------------
+
+
+def _severe_interp(date, headline="December 2024 had mixed severe weather, which may have contributed."):
+    from src.weather_interpretation import UnusualMonthInterpretation
+
+    return UnusualMonthInterpretation(
+        month_start=date,
+        headline=headline,
+        weather_facts=["6 snow day(s), 12 cm total snowfall", "Maximum gust 91 km/h"],
+        energy_evidence=["Flagged as a spike by 3 of 3 detection methods (rolling_zscore, stl_esd, isolation_forest)"],
+        residual_monthly_kwh=210.0,
+        confidence="Medium",
+        limitation="Monthly billing data cannot confirm behavioural causes.",
+    )
+
+
+def test_answer_severe_weather_requires_weather_enabled():
+    ans = answer_severe_weather(_ctx(weather_enabled=False))
+
+    assert "Weather adjustment" in ans.answer
+    assert ans.related_tab == "Weather Impact"
+
+
+def test_answer_severe_weather_no_anomalies_is_honest():
+    ans = answer_severe_weather(_ctx(weather_enabled=True, anomalies=[]))
+
+    assert "nothing severe weather would need to explain" in ans.answer
+
+
+def test_answer_severe_weather_composes_facts_evidence_and_limitation():
+    date = pd.Timestamp("2024-12-01")
+    anomaly = Anomaly(date=date, methods=["rolling_zscore", "stl_esd", "isolation_forest"], direction="spike", rank_context="1st highest of 35 months")
+    ans = answer_severe_weather(
+        _ctx(weather_enabled=True, anomalies=[anomaly], weather_interpretations={date: _severe_interp(date)})
+    )
+
+    assert "may have contributed" in ans.answer
+    assert "cannot confirm" in ans.answer  # the limitation is part of the answer
+    assert any("snow day" in e for e in ans.evidence)  # weather facts
+    assert any("3 of 3 detection methods" in e for e in ans.evidence)  # energy evidence
+    assert ans.confidence == "Medium"
+    assert ans.related_tab == "Unusual Months"
+
+
+def test_answer_severe_weather_mentions_other_flagged_months():
+    d1, d2 = pd.Timestamp("2024-12-01"), pd.Timestamp("2025-03-01")
+    anomalies = [
+        Anomaly(date=d1, methods=["rolling_zscore", "stl_esd"], direction="spike", rank_context="1st highest"),
+        Anomaly(date=d2, methods=["stl_esd"], direction="drop", rank_context="2nd lowest"),
+    ]
+    interps = {d1: _severe_interp(d1), d2: _severe_interp(d2, headline="March 2025 was quiet.")}
+    ans = answer_severe_weather(_ctx(weather_enabled=True, anomalies=anomalies, weather_interpretations=interps))
+
+    assert "Other flagged months" in ans.answer
+    assert "March 2025" in ans.answer
+
+
+def test_answer_severe_weather_missing_interpretation_is_honest():
+    date = pd.Timestamp("2024-12-01")
+    anomaly = Anomaly(date=date, methods=["stl_esd"], direction="spike", rank_context="1st highest")
+    ans = answer_severe_weather(_ctx(weather_enabled=True, anomalies=[anomaly], weather_interpretations={}))
+
+    assert "couldn't be computed" in ans.answer
+    assert ans.confidence == "Low"

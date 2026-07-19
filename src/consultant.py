@@ -31,6 +31,7 @@ from src.kpis import winter_over_winter_comparison
 from src.recommendations import NO_RECOMMENDATIONS_MESSAGE
 from src.report import AnalystReport
 from src.utils import format_gbp, safe_divide
+from src.weather_interpretation import UnusualMonthInterpretation
 
 
 @dataclass
@@ -58,6 +59,9 @@ class ConsultantContext:
     # Which fuel the selected-fuel answers describe (e.g. "Gas only") -- displayed by the UI
     # so "your forecast" is never silently a single-fuel number (audit finding F6).
     fuel_label: str = ""
+    # Weather-context interpretations for the selected fuel's flagged months, keyed by
+    # month_start -- built in main() when weather adjustment is on, None otherwise.
+    weather_interpretations: dict[pd.Timestamp, UnusualMonthInterpretation] | None = None
 
 
 def answer_bill_change(ctx: ConsultantContext) -> ConsultantAnswer:
@@ -267,6 +271,61 @@ def answer_last_month_anomaly(ctx: ConsultantContext) -> ConsultantAnswer:
         answer=answer,
         evidence=[f"Detected by: {', '.join(anomaly.methods)}", anomaly.rank_context],
         confidence=rating.level,
+        related_tab="Unusual Months",
+    )
+
+
+def answer_severe_weather(ctx: ConsultantContext) -> ConsultantAnswer:
+    """Could snow/wind/rain explain the flagged months? Answer structure: direct answer,
+    weather facts (evidence), energy evidence, plausible interpretation, limitation --
+    always hedged, never asserting home-working/occupancy as fact."""
+    question = "Could severe weather explain my unusual months?"
+    if not ctx.weather_enabled:
+        return ConsultantAnswer(
+            question=question,
+            answer="Weather data isn't loaded -- turn on 'Weather adjustment' in the sidebar "
+            "first, then ask again. Severe-weather context (snow, wind, heavy rain) comes from "
+            "the same Open-Meteo fetch as the temperature model.",
+            evidence=[],
+            confidence=None,
+            related_tab="Weather Impact",
+        )
+    if not ctx.anomalies:
+        return ConsultantAnswer(
+            question=question,
+            answer="No months are currently flagged as unusual for this fuel, so there's "
+            "nothing severe weather would need to explain.",
+            evidence=[],
+            confidence="Medium",
+            related_tab="Unusual Months",
+        )
+    interpretations = ctx.weather_interpretations or {}
+    top = ctx.anomalies[0]  # already sorted by method agreement, then date
+    interp = interpretations.get(top.date)
+    if interp is None:
+        return ConsultantAnswer(
+            question=question,
+            answer=f"{top.date.strftime('%B %Y')} is flagged as unusual, but weather context "
+            "couldn't be computed for it (weather data may not cover that month).",
+            evidence=[],
+            confidence="Low",
+            related_tab="Unusual Months",
+        )
+    parts = [interp.headline]
+    others = [a for a in ctx.anomalies if a.date != top.date]
+    if others:
+        summaries = []
+        for a in others[:3]:
+            other = interpretations.get(a.date)
+            label = other.weather_facts[0] if other and other.weather_facts else "no weather context"
+            summaries.append(f"{a.date.strftime('%B %Y')} ({a.direction}; {label})")
+        parts.append("Other flagged months: " + "; ".join(summaries) + ".")
+    parts.append(interp.limitation)
+    return ConsultantAnswer(
+        question=question,
+        answer=" ".join(parts),
+        evidence=[*interp.weather_facts, *interp.energy_evidence],
+        confidence=interp.confidence,
         related_tab="Unusual Months",
     )
 
