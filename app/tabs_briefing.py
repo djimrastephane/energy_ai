@@ -173,22 +173,23 @@ def render_executive_briefing(
         st.info(f"Forecast unavailable: {forecast_error}")
     elif forecast_12mo is not None:
         unit_rate = clean["cost_gbp"].sum() / clean["consumption_kwh"].sum()
-        best = float(forecast_12mo.p10.sum())  # lower kWh = lower bill = best case for the wallet
-        likely = float(forecast_12mo.p50.sum())
-        worst = float(forecast_12mo.p90.sum())  # higher kWh = higher bill = worst plausible case
+        lower = float(forecast_12mo.p10.sum())
+        expected = float(forecast_12mo.p50.sum())
+        upper = float(forecast_12mo.p90.sum())
         tooltip = (
-            "From resampling the model's own past forecast errors -- a plausible range, not a "
-            "guarantee. Covers energy consumption cost only: the billing exports don't break out "
-            "standing charges, so your actual bill will be higher by that fixed daily amount."
+            "From resampling the model's own past forecast errors -- bounds on what's plausible, "
+            "not equally likely outcomes; values near the expected estimate are more likely. "
+            "Covers energy consumption cost only: the billing exports don't break out standing "
+            "charges, so your actual bill will be higher by that fixed daily amount."
         )
         # Whole pounds: bootstrap uncertainty bands don't support penny precision.
         c1, c2, c3 = st.columns(3)
-        c1.metric("Best case", f"£{best * unit_rate:,.0f}", help=tooltip)
-        c2.metric("Most likely", f"£{likely * unit_rate:,.0f}", help=tooltip)
-        c3.metric("Worst plausible", f"£{worst * unit_rate:,.0f}", help=tooltip)
+        c1.metric("Expected", f"£{expected * unit_rate:,.0f}", help=tooltip)
+        c2.metric("Lower estimate", f"£{lower * unit_rate:,.0f}", help=tooltip)
+        c3.metric("Upper estimate", f"£{upper * unit_rate:,.0f}", help=tooltip)
         st.caption(
-            f"Based on the {forecast_12mo.model_name} model (auto-selected by cross-validation). "
-            "See 'What should I expect next?' for the full model comparison and chart."
+            "Produced by the best-performing statistical model in cross-validation. "
+            "See 'What should I expect next?' for the chart, seasonal expectations, and model details."
         )
     else:
         st.info("Not enough history for a cross-validated forecast yet.")

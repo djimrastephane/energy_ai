@@ -128,9 +128,19 @@ def test_app_renders_without_exceptions():
     assert list(_tab(at, "Usage shifts").exception) == []
     assert list(_tab(at, "Unusual months").exception) == []
 
-    # Forecasting: CV ran and picked a model.
+    # Forecasting: answer-first layout -- expected value + confidence lead, the model is a
+    # detail inside the Model details expander (still present, still traceable).
     forecast = _tab(at, "What should I expect next?")
-    assert any("selected model" in md.value.lower() for md in forecast.get("subheader"))
+    assert any("what should i expect" in md.value.lower() for md in forecast.get("subheader"))
+    forecast_metrics = [m.label for m in forecast.get("metric")]
+    assert "Expected energy use" in forecast_metrics
+    assert "Forecast confidence" in forecast_metrics
+    assert any("expected" in m.label.lower() and "estimate" in m.label.lower() for m in forecast.get("metric"))
+    expander_labels = [e.label.lower() for e in forecast.get("expander")]
+    assert any("model details" in label for label in expander_labels)
+    assert any("plausible range" in label for label in expander_labels)
+    assert any("selected model" in md.value.lower() for md in forecast.get("markdown"))
+    assert any("assumes your future use resembles previous years" in c.value for c in forecast.get("caption"))
 
 
 # --- month-comparison journey -------------------------------------------------------------
