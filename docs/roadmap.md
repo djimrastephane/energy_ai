@@ -130,12 +130,20 @@ since none of it was ever Total-specific by name.
 - A genuine finding from manual verification: running the *unmodified*
   weather-adjusted energy-signature regression separately on
   Electricity-only vs. Gas-only data (rather than only ever the combined
-  Total) shows heating here is overwhelmingly gas-driven -- gas's heating
-  slope is 1.472 kWh/day/HDD (89% of the Total fit's 1.661) vs.
-  electricity's 0.189 (11%, but still statistically significant at
-  p=0.0003, not noise). Full detail in the README's
-  [Fuel-level analysis](../README.md#fuel-level-analysis-electricity-vs-gas)
-  section.
+  Total) shows heating here is overwhelmingly gas-driven -- electricity's
+  weather sensitivity is small but statistically real (p=0.0003, not
+  noise), plausibly an immersion heater or extra device/lighting use on
+  cold days:
+
+  | Fuel | Heating slope (kWh/day per HDD) | R² | p-value |
+  |---|---|---|---|
+  | Total | 1.661 | 0.73 | <0.0001 |
+  | Gas | 1.472 (89% of Total's) | 0.69 | <0.0001 |
+  | Electricity | 0.189 (11% of Total's) | 0.34 | 0.0003 |
+
+  On the combined billing data, gas is ~65% of consumption but only ~31%
+  of cost (the cheaper fuel per kWh), and swings ~8x between winter and
+  summer versus ~1.6x for electricity.
 - Coverage: 96% on `src/`, 193 tests total (up from 180).
 
 ## Phase 4 -- household energy intelligence -- done
