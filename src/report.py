@@ -94,6 +94,14 @@ def _limitations(
         )
     if energy_result is None:
         items.append("Weather adjustment is off, so findings can't separate weather-driven changes from behavioural ones.")
+    elif pd.isna(energy_result.cooling_pvalue):
+        # Zero-variance CDD -> the regression reported cooling as inestimable (slope 0,
+        # NaN p-value) rather than fabricating a p-value -- see src/energy_signature.py.
+        items.append(
+            "No cooling load was detected: cooling degree days are essentially zero at this "
+            "location across the whole history, so warm-weather effects could not be estimated "
+            "-- consistent with a household without air conditioning."
+        )
     if report.missing_months:
         items.append(f"{len(report.missing_months)} month(s) are missing from the billing data.")
     return items

@@ -31,7 +31,11 @@ Real answers from the author's real 35-month household dataset:
   signature" regression (Open-Meteo, free, cached to disk for offline use)
   separates weather from behaviour; snow/wind/severe-weather context
   explains unusual months without ever claiming causation
-  ([docs/weather_context.md](docs/weather_context.md)).
+  ([docs/weather_context.md](docs/weather_context.md)). Cooling terms stay
+  in the model for reuse in warmer climates, but for a home without air
+  conditioning -- like this Aberdeen dataset, where cooling degree days
+  are zero across the entire history -- cooling is reported as
+  undetectable and kept out of the main view, never fabricated.
 - **Forecasting** -- 8 models (naive through SARIMA, Prophet, XGBoost,
   LightGBM) compared by walk-forward cross-validation, with P10/P50/P90
   bands. On the real data, Seasonal Naive wins -- an honest finding that
