@@ -99,9 +99,9 @@ def render_cost_intelligence(fuel_clean_dfs: dict[EnergyType, pd.DataFrame], wea
         columns={
             "fuel": "Fuel",
             "model": "Model",
-            "best_gbp": "Best case (£)",
-            "likely_gbp": "Most likely (£)",
-            "worst_gbp": "Worst plausible (£)",
+            "best_gbp": "Lower estimate (£)",
+            "likely_gbp": "Expected (£)",
+            "worst_gbp": "Upper estimate (£)",
         }
     ).round(0)
     st.dataframe(bill_display, hide_index=True, width="stretch")

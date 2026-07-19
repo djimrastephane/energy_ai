@@ -14,10 +14,12 @@ from charts_phase3 import anomaly_scatter, forecast_fan_chart, model_comparison_
 from tabs_weather_context import render_severe_weather_sections
 
 from src.anomalies import Anomaly, interpret_anomalies
+from src.confidence import rate_forecast
 from src.energy_signature import EnergySignatureResult
 from src.forecast_evaluation import ForecastResult, generate_forecast
 from src.ingestion import EnergyType
 from src.investigation import build_investigation_checklist
+from src.monthly_comparison import is_month_complete
 from src.weather_context import WeatherContextClassification
 from src.weather_interpretation import UnusualMonthInterpretation
 
@@ -56,14 +58,26 @@ def generate_multi_fuel_forecast_cached(
     return results
 
 
+def _trailing_actual_kwh(clean: pd.DataFrame, months: int) -> float | None:
+    """Sum of the last ``months`` *complete* months of actuals -- the in-progress month is
+    excluded so the forecast isn't compared against a period with a month-to-date stub."""
+    complete = clean[clean["month_start"].apply(is_month_complete)].sort_values("month_start")
+    if len(complete) < months:
+        return None
+    return float(complete.tail(months)["consumption_kwh"].sum())
+
+
+def _seasonal_expectation(result: ForecastResult, month_nums: set[int]) -> float | None:
+    """Expected (P50) total over the forecast months whose calendar month is in ``month_nums``,
+    or None if the horizon doesn't include all of them."""
+    dates = list(result.forecast_dates)
+    matching = [i for i, d in enumerate(dates) if d.month in month_nums]
+    if len({dates[i].month for i in matching}) < len(month_nums):
+        return None
+    return float(sum(result.p50[i] for i in matching))
+
+
 def render_forecasting(clean: pd.DataFrame, horizon: int, model_choice: str) -> None:
-    st.caption(
-        "Uses full history regardless of the sidebar year filter. Cross-validation is "
-        "1-step-ahead walk-forward, not multi-step -- ~35 months of data doesn't support "
-        "reliable multi-step CV at longer horizons, so this only validates 1-month-ahead "
-        "accuracy. The chart still projects the chosen model out to the full horizon below; "
-        "that projection just isn't itself cross-validated at longer lead times."
-    )
     model_name = "auto" if model_choice == "Auto (best by CV)" else model_choice
 
     try:
@@ -72,39 +86,99 @@ def render_forecasting(clean: pd.DataFrame, horizon: int, model_choice: str) -> 
         st.warning(str(exc))
         return
 
-    selection_note = " (auto-selected by CV)" if model_choice == "Auto (best by CV)" else " (forced)"
-    st.subheader(f"Selected model: {result.model_name}{selection_note}")
-    st.plotly_chart(forecast_fan_chart(clean, result), width="stretch")
-
+    # Answer first: what to expect, how it compares with the last year, and how much to
+    # trust it -- the model that produced it is a detail, kept in the expander below.
+    expected_kwh = float(result.p50.sum())
     unit_rate = clean["cost_gbp"].sum() / clean["consumption_kwh"].sum()
-    total_best = float(result.p10.sum())  # lower kWh = lower bill = the best case for the user's wallet
-    total_likely = float(result.p50.sum())
-    total_worst = float(result.p90.sum())  # higher kWh = higher bill = the worst plausible case
-    tooltip = (
-        "These come from resampling the model's own past forecast errors, scaled up the further "
-        "ahead the month is -- a plausible range, not a guarantee. 'Best'/'Worst' refer to your "
-        "bill (lower consumption is better for cost), not to forecast accuracy. £ figures cover "
-        "energy consumption only -- standing charges aren't in the billing exports, so actual "
-        "bills will be higher by that fixed daily amount."
-    )
-    # Whole pounds for forecast £: bootstrap bands don't support penny precision.
-    c1, c2, c3 = st.columns(3)
+    rating = rate_forecast(result, float(clean["consumption_kwh"].mean()))
+    trailing_kwh = _trailing_actual_kwh(clean, horizon)
+
+    st.subheader(f"What should I expect over the next {horizon} months?")
+    delta = None
+    if trailing_kwh is not None and trailing_kwh > 0:
+        change_pct = (expected_kwh - trailing_kwh) / trailing_kwh * 100
+        delta = f"{change_pct:+.0f}% vs the last {horizon} complete months ({trailing_kwh:,.0f} kWh)"
+    c1, c2 = st.columns([1.4, 1])
     c1.metric(
-        f"Best plausible ({horizon}mo)", f"{total_best:,.0f} kWh", f"£{total_best * unit_rate:,.0f}", help=tooltip
+        "Expected energy use",
+        f"≈ {expected_kwh:,.0f} kWh",
+        delta,
+        delta_color="off",
+        help=(
+            "The forecast's central (P50) estimate, produced by the best-performing model in "
+            "cross-validation -- see Model details below."
+        ),
     )
     c2.metric(
-        f"Most likely ({horizon}mo)", f"{total_likely:,.0f} kWh", f"£{total_likely * unit_rate:,.0f}", help=tooltip
+        "Forecast confidence",
+        rating.level,
+        help=rating.reason,
     )
-    c3.metric(
-        f"Worst plausible ({horizon}mo)", f"{total_worst:,.0f} kWh", f"£{total_worst * unit_rate:,.0f}", help=tooltip
+    st.caption(
+        f"≈ £{expected_kwh * unit_rate:,.0f} at your average rate, excluding standing charges. "
+        f"Confidence is {rating.level.lower()}: {rating.reason}"
     )
 
-    st.subheader("Model comparison (cross-validated MAE, lower is better)")
-    st.plotly_chart(model_comparison_bar(result.comparison, result.model_name), width="stretch")
-    display = result.comparison.rename(
-        columns={"model": "Model", "mae": "MAE", "rmse": "RMSE", "mape": "MAPE (%)", "n_folds": "CV folds"}
-    ).round(1)
-    st.dataframe(display, hide_index=True, width="stretch")
+    # Seasonal expectations communicate most of the practical value without leaning on
+    # the wide 12-month interval.
+    winter_kwh = _seasonal_expectation(result, {12, 1, 2})
+    summer_kwh = _seasonal_expectation(result, {6, 7, 8})
+    if winter_kwh is not None or summer_kwh is not None:
+        cols = st.columns(2)
+        if winter_kwh is not None:
+            cols[0].metric(
+                "Expected winter months (Dec-Feb)",
+                f"≈ {winter_kwh:,.0f} kWh",
+                help="Sum of the expected (P50) values for the forecast's December-February months.",
+            )
+        if summer_kwh is not None:
+            cols[1].metric(
+                "Expected summer months (Jun-Aug)",
+                f"≈ {summer_kwh:,.0f} kWh",
+                help="Sum of the expected (P50) values for the forecast's June-August months.",
+            )
+
+    st.plotly_chart(forecast_fan_chart(clean, result), width="stretch")
+    st.caption(
+        "The forecast assumes your future use resembles previous years and that nothing major "
+        "changes -- no heat pump, no change in occupancy or tariff, no new large appliances. "
+        "It cannot anticipate one-off events."
+    )
+
+    # The range: bounds on plausibility, not three equally likely outcomes.
+    total_lower = float(result.p10.sum())
+    total_upper = float(result.p90.sum())
+    with st.expander(f"Plausible range for the {horizon}-month total"):
+        tooltip = (
+            "From resampling the model's own past forecast errors, scaled up the further ahead "
+            "the month is. These are bounds on what's plausible -- not equally likely outcomes; "
+            "values near the expected estimate are more likely than values near either bound. "
+            "£ figures cover energy consumption only (standing charges aren't in the exports)."
+        )
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Lower estimate", f"{total_lower:,.0f} kWh", f"£{total_lower * unit_rate:,.0f}", help=tooltip)
+        c2.metric("Expected estimate", f"{expected_kwh:,.0f} kWh", f"£{expected_kwh * unit_rate:,.0f}", help=tooltip)
+        c3.metric("Upper estimate", f"{total_upper:,.0f} kWh", f"£{total_upper * unit_rate:,.0f}", help=tooltip)
+        st.caption(
+            "The range is wide because ~35 monthly observations can't pin down a 12-month total "
+            "tightly -- that's the honest width, not a hedge."
+        )
+
+    with st.expander("Model details"):
+        selection_note = "auto-selected by cross-validation" if model_choice == "Auto (best by CV)" else "forced via the sidebar"
+        st.markdown(f"**Selected model: {result.model_name}** ({selection_note})")
+        st.caption(
+            "Uses full history regardless of the sidebar year filter. Cross-validation is "
+            "1-step-ahead walk-forward, not multi-step -- ~35 months of data doesn't support "
+            "reliable multi-step CV at longer horizons, so this only validates 1-month-ahead "
+            "accuracy. The chart projects the chosen model to the full horizon; that projection "
+            "isn't itself cross-validated at longer lead times."
+        )
+        st.plotly_chart(model_comparison_bar(result.comparison, result.model_name), width="stretch")
+        display = result.comparison.rename(
+            columns={"model": "Model", "mae": "MAE", "rmse": "RMSE", "mape": "MAPE (%)", "n_folds": "CV folds"}
+        ).round(1)
+        st.dataframe(display, hide_index=True, width="stretch")
 
 
 def render_anomalies(

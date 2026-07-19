@@ -17,10 +17,14 @@ from src.forecast_evaluation import ForecastResult
 
 
 def forecast_fan_chart(history: pd.DataFrame, forecast_result: ForecastResult) -> go.Figure:
-    """Historical consumption plus the forecast's P10-P90 band and P50 line.
+    """Historical consumption plus the forecast's plausible range and expected line.
 
-    Answers 'given the recent history, what's a plausible range for the
-    coming months?'.
+    Presentation choices (per the forecast-page UX review): history is
+    slightly faded so the eye lands on the forecast; an explicit
+    "Forecast begins" marker separates measurement from projection; and
+    the plausible-range band fades progressively with the horizon, since
+    uncertainty grows the further ahead the month is -- the band should
+    *look* less certain at 12 months out than at 1.
     """
     fig = go.Figure()
     fig.add_trace(
@@ -28,46 +32,66 @@ def forecast_fan_chart(history: pd.DataFrame, forecast_result: ForecastResult) -
             x=history["month_start"],
             y=history["consumption_kwh"],
             mode="lines+markers",
-            name="Actual",
-            line={"width": 2, "color": PALETTE[0]},
-            marker={"size": 6},
+            name="Actual (history)",
+            line={"width": 2, "color": "rgba(42, 120, 214, 0.45)"},
+            marker={"size": 5, "color": "rgba(42, 120, 214, 0.45)"},
             hovertemplate="%{x|%b %Y}<br>%{y:,.0f} kWh<extra></extra>",
         )
     )
-    fig.add_trace(
-        go.Scatter(
-            x=forecast_result.forecast_dates,
-            y=forecast_result.p90,
-            mode="lines",
-            line={"width": 0},
-            showlegend=False,
-            hoverinfo="skip",
+
+    # Plausible range as per-month segments with decreasing opacity -- one legend
+    # entry for the first segment, the rest hidden from the legend.
+    dates = list(forecast_result.forecast_dates)
+    p10 = list(forecast_result.p10)
+    p90 = list(forecast_result.p90)
+    n_segments = max(len(dates) - 1, 1)
+    for i in range(len(dates) - 1):
+        alpha = 0.24 - (0.24 - 0.05) * (i / n_segments)
+        fig.add_trace(
+            go.Scatter(
+                x=[dates[i], dates[i + 1]],
+                y=[p90[i], p90[i + 1]],
+                mode="lines",
+                line={"width": 0},
+                showlegend=False,
+                hoverinfo="skip",
+            )
         )
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=forecast_result.forecast_dates,
-            y=forecast_result.p10,
-            mode="lines",
-            name="P10-P90 range",
-            line={"width": 0},
-            fill="tonexty",
-            fillcolor="rgba(42, 120, 214, 0.15)",
-            hovertemplate="P10 %{y:,.0f} kWh<extra></extra>",
+        fig.add_trace(
+            go.Scatter(
+                x=[dates[i], dates[i + 1]],
+                y=[p10[i], p10[i + 1]],
+                mode="lines",
+                name="Plausible range (fades = less certain)",
+                showlegend=(i == 0),
+                line={"width": 0},
+                fill="tonexty",
+                fillcolor=f"rgba(42, 120, 214, {alpha:.3f})",
+                hoverinfo="skip",
+            )
         )
-    )
+
     fig.add_trace(
         go.Scatter(
             x=forecast_result.forecast_dates,
             y=forecast_result.p50,
             mode="lines+markers",
-            name=f"Forecast ({forecast_result.model_name})",
-            line={"width": 2, "color": PALETTE[1], "dash": "dash"},
+            name="Expected",
+            line={"width": 2.5, "color": PALETTE[1], "dash": "dash"},
             marker={"size": 6},
-            hovertemplate="%{x|%b %Y}<br>P50 %{y:,.0f} kWh<extra></extra>",
+            hovertemplate="%{x|%b %Y}<br>expected %{y:,.0f} kWh<extra></extra>",
         )
     )
-    return base_layout(fig, "Consumption Forecast", "kWh")
+
+    if len(history) and len(dates):
+        boundary = history["month_start"].max() + (dates[0] - history["month_start"].max()) / 2
+        fig.add_vline(
+            x=boundary.timestamp() * 1000,
+            line={"width": 1.5, "dash": "dot", "color": "#8a8a8a"},
+            annotation_text="Forecast begins",
+            annotation_position="top",
+        )
+    return base_layout(fig, "Consumption: History and Forecast", "kWh")
 
 
 def model_comparison_bar(comparison_df: pd.DataFrame, chosen_model: str) -> go.Figure:
