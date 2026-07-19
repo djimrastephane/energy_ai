@@ -108,6 +108,7 @@ def main() -> None:
         fuel_label,
         fuel_frames,
         fuel_cross_check_warnings,
+        billing_config,
     ) = render_sidebar()
     st.caption(f"**Fuel: {fuel_label}**")
     period_df = clean[clean["year"].isin(selected_years)].sort_values("month_start")
@@ -188,6 +189,7 @@ def main() -> None:
         fuel_merged if weather_enabled else dict.fromkeys(fuel_frames),
         fuel_energy_results if weather_enabled else dict.fromkeys(fuel_frames),
         weather_enabled,
+        billing_config=billing_config,
     )
 
     consultant_ctx = ConsultantContext(
@@ -209,6 +211,7 @@ def main() -> None:
         comparison_mode=month_ctx.mode,
         comparison_fuel=month_ctx.fuel,
         fuel_merged=fuel_merged if weather_enabled else None,
+        billing_config=billing_config,
     )
 
     # --- Household Energy Review download (sidebar, two-step) -----------------------------
@@ -288,7 +291,9 @@ def main() -> None:
         ]
     )
     with tab_home:
-        render_executive_briefing(clean, analyst_report, forecast_12mo, forecast_error, month_ctx, fuel)
+        render_executive_briefing(
+            clean, analyst_report, forecast_12mo, forecast_error, month_ctx, fuel, billing_config
+        )
     with tab_month:
         render_month_comparison(month_ctx, fuel_frames, fuel_anomalies_all)
     with tab_drivers:
@@ -308,7 +313,7 @@ def main() -> None:
     with tab_costs_carbon:
         sub_cost, sub_carbon = st.tabs(["Costs", "Carbon"])
         with sub_cost:
-            render_cost_intelligence(fuel_frames, weather_enabled)
+            render_cost_intelligence(fuel_frames, weather_enabled, billing_config)
         with sub_carbon:
             render_carbon(fuel_frames, fuel_merged, fuel_energy_results, weather_enabled)
     with tab_unusual:
@@ -329,7 +334,7 @@ def main() -> None:
                 stl_result, stl_error, changepoints, clean, merged, energy_result, fuel
             )
     with tab_forecast:
-        render_forecasting(clean, horizon, model_choice, fuel)
+        render_forecasting(clean, horizon, model_choice, fuel, billing_config)
     with tab_consultant:
         render_consultant(consultant_ctx)
     with tab_long_term:
