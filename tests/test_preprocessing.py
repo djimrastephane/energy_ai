@@ -164,13 +164,13 @@ def test_run_pipeline_end_to_end_produces_report():
     assert len(clean) == 2
 
 
-def test_flag_in_progress_month_warns_when_latest_month_is_current():
+def test_flag_in_progress_month_warns_when_billing_period_is_open():
     # `today` is injected so this test is deterministic regardless of when it runs.
     today = pd.Timestamp("2026-07-18")
     df = pd.DataFrame(
         [
             _raw_row("2026-06-01", 48.18, 284.09, "a.csv"),
-            _raw_row("2026-07-01", 21.96, 107.87, "a.csv"),  # month-to-date figure
+            _raw_row("2026-07-01", 21.96, 107.87, "a.csv"),  # period-to-date figure
         ]
     )
 
@@ -178,11 +178,23 @@ def test_flag_in_progress_month_warns_when_latest_month_is_current():
 
     assert len(warnings) == 1
     assert "July 2026" in warnings[0]
-    assert "month-to-date" in warnings[0]
+    assert "period-to-date" in warnings[0]
+    assert "06 Jul - 05 Aug 2026" in warnings[0]
 
 
-def test_flag_in_progress_month_silent_for_completed_months():
-    today = pd.Timestamp("2026-08-05")  # July is now a closed month
+def test_flag_in_progress_month_warns_until_the_5th_of_the_next_month():
+    # The July bill covers 6 Jul - 5 Aug, so on 5 Aug it is *still* accumulating --
+    # the old calendar-month convention would wrongly have called it closed.
+    today = pd.Timestamp("2026-08-05")
+    df = pd.DataFrame([_raw_row("2026-07-01", 28.78, 150.59, "a.csv")])
+
+    warnings = flag_in_progress_month(df, today=today)
+    assert len(warnings) == 1
+    assert "July 2026" in warnings[0]
+
+
+def test_flag_in_progress_month_silent_once_billing_period_has_elapsed():
+    today = pd.Timestamp("2026-08-06")  # the 6 Jul - 5 Aug period has now fully elapsed
     df = pd.DataFrame([_raw_row("2026-07-01", 28.78, 150.59, "a.csv")])
 
     assert flag_in_progress_month(df, today=today) == []

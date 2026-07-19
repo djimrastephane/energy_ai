@@ -135,29 +135,32 @@ def validate_units(
 
 
 def flag_in_progress_month(df: pd.DataFrame, today: pd.Timestamp | None = None) -> list[str]:
-    """Warn when the latest month in the data is the current calendar month.
+    """Warn when the latest month's *billing period* has not fully elapsed.
 
-    OVO exports made mid-month contain a month-to-date figure for the current
-    month (verified on real data: July 2026 showed 107.87 kWh on July 18 vs.
-    150.59 kWh for the full July 2025), but every downstream analysis treats
-    each row as a complete month -- ``avg_daily_kwh`` divides by the full
-    ``days_in_month``, trailing-window KPIs sum it as a whole month, and
-    anomaly detection scores it against complete months. The weather side
-    already guards against exactly this (incomplete-coverage months are
-    dropped in ``src.weather.merge_weather_with_consumption``); this is the
-    billing side's equivalent -- a flag, not a drop, since the value is real,
-    just possibly still accumulating.
+    OVO exports made mid-period contain a period-to-date figure (verified on
+    real data: July 2026 showed 107.87 kWh on July 18 vs. 150.59 kWh for the
+    full July 2025), but every downstream analysis treats each row as a
+    complete month -- ``avg_daily_kwh`` divides by the full ``days_in_month``,
+    trailing-window KPIs sum it as a whole month, and anomaly detection
+    scores it against complete months. The billing cycle runs 6th-to-5th
+    (``config.BillingConfig``), so the month labelled June is still
+    accumulating until 5 July inclusive -- ``src.billing`` owns that
+    completeness rule. A flag, not a drop, since the value is real, just
+    possibly still accumulating.
 
     ``today`` is injectable for tests; defaults to the current date.
     """
+    from src.billing import billing_period, is_billing_month_complete
+
     if df.empty:
         return []
-    today = today if today is not None else pd.Timestamp.now()
     latest = df["month_start"].max()
-    if latest.to_period("M") == today.to_period("M"):
+    if not is_billing_month_complete(latest, today):
+        start, end, _ = billing_period(latest)
         return [
-            f"{latest.strftime('%B %Y')} is the current calendar month -- its figures may be "
-            "month-to-date rather than a full month, and every analysis treats it as complete."
+            f"{latest.strftime('%B %Y')}'s billing period ({start.strftime('%d %b')} - "
+            f"{end.strftime('%d %b %Y')}) has not finished -- its figures may be "
+            "period-to-date rather than a full month, and every analysis treats it as complete."
         ]
     return []
 

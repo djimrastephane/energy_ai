@@ -16,6 +16,7 @@ only when supported, confidence and limitation.
 
 from __future__ import annotations
 
+from src.billing import bill_breakdown
 from src.consultant import ConsultantAnswer, ConsultantContext
 from src.ingestion import EnergyType
 from src.monthly_comparison import (
@@ -277,14 +278,25 @@ def answer_why_expensive(ctx: ConsultantContext) -> ConsultantAnswer:
         else f"a typical {comparison.selected_month.strftime('%B')}"
     )
     direction = "more" if comparison.cost_change_gbp >= 0 else "less"
+    current_bill = bill_breakdown(
+        comparison.selected_month, comparison.current_cost_gbp, comparison.fuel
+    )
     parts = [
         f"{comparison.selected_month.strftime('%B %Y')} cost "
-        f"{format_gbp(abs(comparison.cost_change_gbp))} {direction} than {target} "
-        f"({format_gbp(comparison.current_cost_gbp)} vs {format_gbp(comparison.comparison_cost_gbp)})."
+        f"{format_gbp(abs(comparison.cost_change_gbp))} {direction} in consumption than {target} "
+        f"({format_gbp(comparison.current_cost_gbp)} vs {format_gbp(comparison.comparison_cost_gbp)}).",
+        f"The estimated full bill is {format_gbp(current_bill.total_bill_gbp)}: "
+        f"{format_gbp(current_bill.consumption_cost_gbp)} consumption + "
+        f"{format_gbp(current_bill.standing_charge_gbp)} standing charge + "
+        f"{format_gbp(current_bill.vat_gbp)} VAT.",
     ]
     evidence = [
-        f"{comparison.selected_month.strftime('%B %Y')}: {format_gbp(comparison.current_cost_gbp)}",
-        f"{target}: {format_gbp(comparison.comparison_cost_gbp)}",
+        f"{comparison.selected_month.strftime('%B %Y')}: {format_gbp(comparison.current_cost_gbp)} consumption",
+        f"{target}: {format_gbp(comparison.comparison_cost_gbp)} consumption",
+        f"Standing charge ({current_bill.days_in_period} days, "
+        f"{current_bill.billing_period_start.strftime('%d %b')} - "
+        f"{current_bill.billing_period_end.strftime('%d %b')}): {format_gbp(current_bill.standing_charge_gbp)}",
+        f"VAT at 5%: {format_gbp(current_bill.vat_gbp)}",
     ]
     if comparison.cost_change_from_usage_gbp is not None:
         usage, rate = comparison.cost_change_from_usage_gbp, comparison.cost_change_from_rate_gbp
@@ -304,8 +316,8 @@ def answer_why_expensive(ctx: ConsultantContext) -> ConsultantAnswer:
             )
         evidence.append(f"From usage: {_signed(usage)}; from effective rate: {_signed(rate)}")
     parts.append(
-        "Standing charges aren't in the billing exports, so they are outside this comparison. "
-        + _selection_caption(ctx, comparison)
+        "Standing charges are near-identical for the same calendar month, so they rarely "
+        "explain a year-on-year change. " + _selection_caption(ctx, comparison)
     )
     return ConsultantAnswer(
         question=question,

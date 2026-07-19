@@ -288,7 +288,7 @@ def main() -> None:
         ]
     )
     with tab_home:
-        render_executive_briefing(clean, analyst_report, forecast_12mo, forecast_error, month_ctx)
+        render_executive_briefing(clean, analyst_report, forecast_12mo, forecast_error, month_ctx, fuel)
     with tab_month:
         render_month_comparison(month_ctx, fuel_frames, fuel_anomalies_all)
     with tab_drivers:
@@ -329,7 +329,7 @@ def main() -> None:
                 stl_result, stl_error, changepoints, clean, merged, energy_result, fuel
             )
     with tab_forecast:
-        render_forecasting(clean, horizon, model_choice)
+        render_forecasting(clean, horizon, model_choice, fuel)
     with tab_consultant:
         render_consultant(consultant_ctx)
     with tab_long_term:

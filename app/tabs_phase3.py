@@ -13,7 +13,9 @@ import streamlit as st
 from charts_phase3 import anomaly_scatter, forecast_fan_chart, model_comparison_bar
 from tabs_weather_context import render_severe_weather_sections
 
+from config import SETTINGS
 from src.anomalies import Anomaly, interpret_anomalies
+from src.billing import standing_charge_for_months
 from src.confidence import rate_forecast
 from src.energy_signature import EnergySignatureResult
 from src.forecast_evaluation import ForecastResult, generate_forecast
@@ -77,7 +79,9 @@ def _seasonal_expectation(result: ForecastResult, month_nums: set[int]) -> float
     return float(sum(result.p50[i] for i in matching))
 
 
-def render_forecasting(clean: pd.DataFrame, horizon: int, model_choice: str) -> None:
+def render_forecasting(
+    clean: pd.DataFrame, horizon: int, model_choice: str, fuel: EnergyType = "total"
+) -> None:
     model_name = "auto" if model_choice == "Auto (best by CV)" else model_choice
 
     try:
@@ -114,9 +118,13 @@ def render_forecasting(clean: pd.DataFrame, horizon: int, model_choice: str) -> 
         rating.level,
         help=rating.reason,
     )
+    standing = standing_charge_for_months(list(result.forecast_dates), fuel)
+    vat_rate = SETTINGS.billing.vat_rate
+    total_bill = (expected_kwh * unit_rate + standing) * (1 + vat_rate)
     st.caption(
-        f"≈ £{expected_kwh * unit_rate:,.0f} at your average rate, excluding standing charges. "
-        f"Confidence is {rating.level.lower()}: {rating.reason}"
+        f"≈ £{expected_kwh * unit_rate:,.0f} consumption at your average rate, plus "
+        f"≈ £{standing:,.0f} standing charges and {vat_rate:.0%} VAT ⇒ estimated total bill "
+        f"≈ £{total_bill:,.0f}. Confidence is {rating.level.lower()}: {rating.reason}"
     )
 
     # Seasonal expectations communicate most of the practical value without leaning on
@@ -153,7 +161,8 @@ def render_forecasting(clean: pd.DataFrame, horizon: int, model_choice: str) -> 
             "From resampling the model's own past forecast errors, scaled up the further ahead "
             "the month is. These are bounds on what's plausible -- not equally likely outcomes; "
             "values near the expected estimate are more likely than values near either bound. "
-            "£ figures cover energy consumption only (standing charges aren't in the exports)."
+            "£ figures are consumption cost only -- the headline caption above adds the "
+            "standing-charge and VAT estimate."
         )
         c1, c2, c3 = st.columns(3)
         c1.metric("Lower estimate", f"{total_lower:,.0f} kWh", f"£{total_lower * unit_rate:,.0f}", help=tooltip)
