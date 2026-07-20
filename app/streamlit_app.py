@@ -99,6 +99,7 @@ def main() -> None:
         fuel_frames,
         fuel_cross_check_warnings,
         billing_config,
+        weather_config,
     ) = render_sidebar()
     st.caption(f"**Fuel: {fuel_label}**")
     period_df = clean[clean["year"].isin(selected_years)].sort_values("month_start")
@@ -117,7 +118,7 @@ def main() -> None:
         fuel_merged,
         fuel_energy_results,
         fuel_weather_errors,
-    ) = compute_all_fuel_analysis(fuel_frames, weather_enabled)
+    ) = compute_all_fuel_analysis(fuel_frames, weather_enabled, weather_config)
 
     stl_result = fuel_stl_results.get(fuel)
     stl_error = fuel_stl_errors.get(fuel)
@@ -138,7 +139,7 @@ def main() -> None:
     weather_context_df = daily_weather = weather_interpretations = None
     if weather_enabled:
         try:
-            weather_context_df, daily_weather = load_weather_context(clean)
+            weather_context_df, daily_weather = load_weather_context(clean, weather_config)
         except (WeatherFetchError, ValueError) as exc:
             st.sidebar.caption(f"Weather context unavailable: {exc}")
         if weather_context_df is not None and anomalies:
@@ -298,7 +299,7 @@ def main() -> None:
             render_seasonality(stl_result, stl_error, clean, anomalies)
         with sub_weather:
             render_weather_adjustment(
-                weather_enabled, merged, energy_result, weather_error, fuel, weather_context_df
+                weather_enabled, merged, energy_result, weather_error, fuel, weather_context_df, weather_config
             )
     with tab_costs_carbon:
         sub_cost, sub_carbon = st.tabs(["Costs", "Carbon"])

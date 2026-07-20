@@ -13,7 +13,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from config import SETTINGS
+from config import SETTINGS, WeatherConfig
 from src.anomalies import Anomaly
 from src.energy_signature import EnergySignatureResult
 from src.ingestion import EnergyType
@@ -30,14 +30,21 @@ _CONFIDENCE_ICON = {"High": "🟢", "Medium": "🟡", "Low": "🔴"}
 
 
 @st.cache_data(show_spinner="Computing weather context (snow, wind, precipitation)...")
-def load_weather_context(clean: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+def load_weather_context(
+    clean: pd.DataFrame, weather_config: WeatherConfig | None = None
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """(monthly context with severity columns, daily weather) for the consumption range.
+
+    ``weather_config`` defaults to ``SETTINGS.weather`` but is normally the
+    user-confirmed location from the sidebar -- see
+    ``app.tabs_drivers.load_weather_analysis`` for why this is passed
+    explicitly rather than read off a shared global.
 
     The underlying fetch is the same disk-cached call the energy-signature path uses, so
     on any ordinary rerun this is a cache hit at both layers (Streamlit's and the disk's)
     -- no network request and no recomputation.
     """
-    w = SETTINGS.weather
+    w = weather_config or SETTINGS.weather
     start = clean["month_start"].min()
     end = clean["month_start"].max() + pd.offsets.MonthEnd(1)
     daily = fetch_daily_weather(w.latitude, w.longitude, start, end, w.timezone, SETTINGS.weather_cache_dir)

@@ -546,3 +546,66 @@ def test_weather_on_renders_severe_weather_context_without_network(monkeypatch):
     assert list(at.exception) == []
     answer_text = " ".join(md.value.lower() for md in _tab(at, "Ask the Energy Consultant").get("markdown"))
     assert "kwh change" in answer_text or "matches what the temperature model expected" in answer_text
+
+
+def test_weather_location_search_requires_explicit_confirmation(monkeypatch):
+    """Typing a new location must not change what weather adjustment uses until a specific
+    candidate is confirmed -- ambiguous names (multiple real Manchesters) are exactly why."""
+    from app import sidebar, tabs_drivers, tabs_weather_context
+    from src.geocoding import LocationCandidate
+
+    manchester_uk = LocationCandidate(
+        label="Manchester, England, United Kingdom",
+        latitude=53.48, longitude=-2.24, timezone="Europe/London",
+    )
+    manchester_us = LocationCandidate(
+        label="Manchester, New Hampshire, United States",
+        latitude=42.99, longitude=-71.45, timezone="America/New_York",
+    )
+    monkeypatch.setattr(sidebar, "search_location", lambda query, count=5: [manchester_uk, manchester_us])
+    sidebar._search_location_cached.clear()
+
+    def _fake_fetch(lat, lon, start, end, timezone, cache_dir):
+        return _synthetic_daily_weather(start, end)
+
+    monkeypatch.setattr(tabs_drivers, "fetch_daily_weather", _fake_fetch)
+    monkeypatch.setattr(tabs_weather_context, "fetch_daily_weather", _fake_fetch)
+    tabs_drivers.load_weather_analysis.clear()
+    tabs_weather_context.load_weather_context.clear()
+
+    at = AppTest.from_file(str(APP_PATH))
+    at.run(timeout=60)
+
+    location_input = next(t for t in at.sidebar.text_input if "Location" in t.label)
+    assert location_input.value == "Aberdeen, Scotland (AB21 area)"  # the default, unconfirmed
+
+    location_input.set_value("Manchester").run(timeout=60)
+    assert list(at.exception) == []
+
+    match_radio = next(r for r in at.sidebar.radio if r.label == "Confirm the match")
+    assert match_radio.options == [manchester_uk.label, manchester_us.label]
+
+    # Typing alone must not have changed the location weather adjustment would use.
+    caption_text = " ".join(c.value for c in at.sidebar.caption)
+    assert "Location: Aberdeen" in caption_text
+    assert "pending confirmation" in caption_text
+
+    match_radio.set_value(manchester_us.label).run(timeout=60)
+    confirm_button = next(b for b in at.sidebar.button if b.label == "Confirm location")
+    confirm_button.click().run(timeout=60)
+    assert list(at.exception) == []
+
+    location_input = next(t for t in at.sidebar.text_input if "Location" in t.label)
+    assert location_input.value == manchester_us.label
+    caption_text = " ".join(c.value for c in at.sidebar.caption)
+    assert "Location: Manchester, New Hampshire" in caption_text
+    assert "pending confirmation" not in caption_text
+
+    toggle = next(t for t in at.sidebar.toggle if t.label == "Weather adjustment")
+    toggle.set_value(True).run(timeout=120)
+    assert list(at.exception) == []
+
+    weather_tab = _tab(at, "Weather impact")
+    assert list(weather_tab.exception) == []
+    weather_caption = " ".join(c.value for c in weather_tab.get("caption"))
+    assert "Location: Manchester, New Hampshire, United States" in weather_caption

@@ -18,7 +18,7 @@ import streamlit as st
 from app.charts import changepoint_timeline, energy_signature_scatter, stl_components_figure
 from app.charts_seasonal import seasonal_calendar_profile_figure, seasonal_overview_figure
 from app.tabs_weather_context import render_weather_impact_summary
-from config import SETTINGS
+from config import SETTINGS, WeatherConfig
 from src.anomalies import Anomaly
 from src.changepoints import ChangePoint
 from src.decomposition import STLResult, interpret_decomposition
@@ -64,15 +64,23 @@ _DEFINITIONS = [
 
 
 @st.cache_data(show_spinner="Fetching historical weather from Open-Meteo...")
-def load_weather_analysis(clean: pd.DataFrame) -> tuple[pd.DataFrame, EnergySignatureResult]:
+def load_weather_analysis(
+    clean: pd.DataFrame, weather_config: WeatherConfig | None = None
+) -> tuple[pd.DataFrame, EnergySignatureResult]:
     """Fetch weather, fit the energy signature, and return (merged_df, result).
+
+    ``weather_config`` defaults to ``SETTINGS.weather`` (the app's fallback
+    location) but is normally the user-confirmed location from the sidebar
+    -- passed explicitly, not read off a shared global, so concurrent
+    Streamlit sessions with different confirmed locations never leak into
+    each other, and Streamlit's cache correctly busts when it changes.
 
     Cached because the fetch is a network call (mitigated further by
     ``src.weather``'s own on-disk cache) and this can otherwise re-run on
     every widget interaction. Raises ``WeatherFetchError`` or ``ValueError``
     on failure -- callers decide how to present that.
     """
-    w = SETTINGS.weather
+    w = weather_config or SETTINGS.weather
     start = clean["month_start"].min()
     end = clean["month_start"].max() + pd.offsets.MonthEnd(1)
     daily = fetch_daily_weather(w.latitude, w.longitude, start, end, w.timezone, SETTINGS.weather_cache_dir)
@@ -167,8 +175,10 @@ def render_weather_adjustment(
     weather_error: str | None,
     fuel: str = "total",
     weather_context_df: pd.DataFrame | None = None,
+    weather_config: WeatherConfig | None = None,
 ) -> None:
-    st.caption(f"Location: {SETTINGS.weather.location_label}. Uses full history regardless of the year filter.")
+    location_label = (weather_config or SETTINGS.weather).location_label
+    st.caption(f"Location: {location_label}. Uses full history regardless of the year filter.")
     if not weather_enabled:
         st.info(
             "Turn on 'Weather adjustment' in the sidebar to fetch historical temperature and see "

@@ -19,6 +19,7 @@ import pandas as pd
 import streamlit as st
 
 from app.tabs_drivers import load_weather_analysis
+from config import WeatherConfig
 from src.anomalies import Anomaly, detect_anomalies
 from src.decomposition import STLResult, stl_decompose
 from src.energy_signature import EnergySignatureResult
@@ -37,7 +38,9 @@ FuelAnalysis = tuple[
 
 @st.cache_data(show_spinner="Analyzing all fuels...")
 def compute_all_fuel_analysis(
-    fuel_frames: dict[EnergyType, pd.DataFrame], weather_enabled: bool
+    fuel_frames: dict[EnergyType, pd.DataFrame],
+    weather_enabled: bool,
+    weather_config: WeatherConfig | None = None,
 ) -> FuelAnalysis:
     """Run STL + anomaly detection for every fuel with data, and (if ``weather_enabled``) the
     weather regression too. Reuses ``stl_decompose``/``detect_anomalies``/``load_weather_analysis``
@@ -64,7 +67,7 @@ def compute_all_fuel_analysis(
 
         if weather_enabled:
             try:
-                merged, result = load_weather_analysis(df)
+                merged, result = load_weather_analysis(df, weather_config)
                 fuel_merged[fuel] = merged
                 fuel_energy_results[fuel] = result
             except (WeatherFetchError, ValueError) as exc:

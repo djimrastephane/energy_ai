@@ -9,9 +9,10 @@ import dataclasses
 import pandas as pd
 import streamlit as st
 
-from config import SETTINGS, BillingConfig
+from config import SETTINGS, BillingConfig, WeatherConfig
 from src.forecast_evaluation import MODEL_REGISTRY
 from src.fuel import cross_check_fuel_totals
+from src.geocoding import GeocodingError, LocationCandidate, search_location
 from src.ingestion import (
     FUEL_FILE_PATTERNS,
     EnergyType,
@@ -27,6 +28,9 @@ _FUEL_DISPLAY: dict[EnergyType, str] = {
     "gas": "Gas only",
 }
 
+_WEATHER_LOCATION_KEY = "weather_confirmed_location"  # WeatherConfig, once the user confirms a match
+_WEATHER_QUERY_KEY = "weather_location_query"
+
 
 @st.cache_data(show_spinner="Loading data/raw/*.csv...")
 def _load_default_data(pattern: str = FUEL_FILE_PATTERNS["total"]) -> tuple[pd.DataFrame, PreprocessingReport]:
@@ -38,6 +42,30 @@ def _load_default_data(pattern: str = FUEL_FILE_PATTERNS["total"]) -> tuple[pd.D
 def _load_uploaded_data(uploaded_files) -> tuple[pd.DataFrame, PreprocessingReport]:
     raw = load_all(uploaded_files)
     return run_pipeline(raw)
+
+
+@st.cache_data(show_spinner="Searching for location...")
+def _search_location_cached(query: str) -> list[LocationCandidate]:
+    return search_location(query)
+
+
+def _confirm_location(candidate: LocationCandidate) -> None:
+    """Apply a geocoding candidate as the confirmed weather location.
+
+    Runs as a button ``on_click`` callback -- Streamlit executes callbacks
+    before the script reruns from the top, which is the only point a
+    widget's own session-state key can be reassigned (assigning it after
+    the widget has already rendered in the current run raises
+    ``StreamlitAPIException``).
+    """
+    st.session_state[_WEATHER_LOCATION_KEY] = dataclasses.replace(
+        SETTINGS.weather,
+        latitude=candidate.latitude,
+        longitude=candidate.longitude,
+        location_label=candidate.label,
+        timezone=candidate.timezone,
+    )
+    st.session_state[_WEATHER_QUERY_KEY] = candidate.label
 
 
 def _load_all_fuels(
@@ -72,6 +100,7 @@ def render_sidebar() -> tuple[
     dict[EnergyType, pd.DataFrame],
     list[str] | None,
     BillingConfig,
+    WeatherConfig,
 ]:
     st.sidebar.title("Controls")
     st.sidebar.subheader("Data")
@@ -162,11 +191,50 @@ def render_sidebar() -> tuple[
 
     st.sidebar.divider()
     st.sidebar.subheader("Weather")
+
+    confirmed_location: WeatherConfig = st.session_state.get(_WEATHER_LOCATION_KEY, SETTINGS.weather)
+    if _WEATHER_QUERY_KEY not in st.session_state:
+        st.session_state[_WEATHER_QUERY_KEY] = confirmed_location.location_label
+
+    location_query = st.sidebar.text_input(
+        "Location (for weather adjustment)",
+        key=_WEATHER_QUERY_KEY,
+        help=(
+            "Weather adjustment fits historical temperature for this location against your "
+            "consumption. Type a city/town and confirm the right match below -- place names "
+            "are often ambiguous (there are Manchesters in England, New Hampshire, and "
+            "Tennessee), so a search result is never applied automatically."
+        ),
+    )
+    location_confirmed = location_query == confirmed_location.location_label
+
+    if not location_confirmed and location_query.strip():
+        try:
+            candidates = _search_location_cached(location_query)
+        except GeocodingError as exc:
+            candidates = []
+            st.sidebar.error(str(exc))
+        if candidates:
+            options = {c.label: c for c in candidates}
+            chosen_label = st.sidebar.radio(
+                "Confirm the match", list(options), key="weather_candidate_choice"
+            )
+            # Widgets keyed to _WEATHER_QUERY_KEY can't be reassigned once instantiated in the
+            # same run -- the mutation must happen in an on_click callback, which runs *before*
+            # the script reruns (and the widget is re-created) from the top.
+            st.sidebar.button(
+                "Confirm location", on_click=_confirm_location, args=(options[chosen_label],)
+            )
+        else:
+            st.sidebar.caption(f"No matches found for {location_query!r}.")
+
+    weather_config: WeatherConfig = st.session_state.get(_WEATHER_LOCATION_KEY, SETTINGS.weather)
     weather_enabled = st.sidebar.toggle("Weather adjustment", value=False)
+    pending_note = "" if location_confirmed else " (pending confirmation above)"
     st.sidebar.caption(
-        f"Location: {SETTINGS.weather.location_label}. Off by default since turning it on "
-        "fetches historical temperature from Open-Meteo (free, no key) -- cached to disk "
-        "after the first fetch. [Open-Meteo](https://open-meteo.com/)."
+        f"Location: {weather_config.location_label}{pending_note}. Turning this on fetches "
+        "historical temperature from Open-Meteo (free, no key) for this location -- cached "
+        "to disk after the first fetch. [Open-Meteo](https://open-meteo.com/)."
     )
 
     st.sidebar.divider()
@@ -190,4 +258,5 @@ def render_sidebar() -> tuple[
         fuel_frames,
         fuel_cross_check_warnings,
         billing_config,
+        weather_config,
     )
