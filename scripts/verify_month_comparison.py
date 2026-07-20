@@ -11,27 +11,22 @@ Usage:  ./.venv/bin/python scripts/verify_month_comparison.py
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import pandas as pd
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-from config import SETTINGS  # noqa: E402
-from src.anomalies import detect_anomalies  # noqa: E402
-from src.decomposition import stl_decompose  # noqa: E402
-from src.ingestion import FUEL_FILE_PATTERNS, discover_csv_files, load_all  # noqa: E402
-from src.monthly_comparison import (  # noqa: E402
+from config import SETTINGS
+from src.anomalies import detect_anomalies
+from src.decomposition import stl_decompose
+from src.ingestion import FUEL_FILE_PATTERNS, discover_csv_files, load_all
+from src.monthly_comparison import (
     build_monthly_comparison,
     fuel_contributions,
     in_progress_month,
     latest_complete_month,
     month_to_date_note,
 )
-from src.monthly_narrative import build_monthly_comparison_narrative  # noqa: E402
-from src.preprocessing import run_pipeline  # noqa: E402
-from src.weather import (  # noqa: E402
+from src.monthly_narrative import build_monthly_comparison_narrative
+from src.preprocessing import run_pipeline
+from src.weather import (
     compute_monthly_degree_days,
     fetch_daily_weather,
     merge_weather_with_consumption,
@@ -91,6 +86,10 @@ def main() -> None:
             for f in ("total", "electricity", "gas")
         }
         total = comparisons["total"]
+        if total is None:
+            print("=" * 78)
+            print(f"{title}: no comparison available for {month.strftime('%B %Y')}")
+            continue
         contributions = fuel_contributions(
             comparisons["total"], comparisons["electricity"], comparisons["gas"]
         )
@@ -104,6 +103,9 @@ def main() -> None:
             f"{total.comparison_month.strftime('%B %Y') if total.comparison_month is not None else 'n/a'}"
         )
         for fuel_name, comparison in (("Gas", comparisons["gas"]), ("Electricity", comparisons["electricity"]), ("Combined", total)):
+            if comparison is None:
+                print(f"  {fuel_name + ' usage:':<24} n/a")
+                continue
             pct = f" ({comparison.percentage_change:+.1f}%)" if comparison.percentage_change is not None else ""
             print(
                 f"  {fuel_name + ' usage:':<24} {_fmt(comparison.current_consumption_kwh, ' kWh')} "
@@ -139,8 +141,11 @@ def main() -> None:
         row = clean[clean["month_start"] == partial].iloc[0]
         print(f"  Month-to-date: {row['consumption_kwh']:,.1f} kWh, £{row['cost_gbp']:,.2f}")
         mtd = build_monthly_comparison(clean, "total", "same_month_last_year", partial)
-        print(f"  data_complete flag: {mtd.data_complete} | confidence: {mtd.confidence}")
-        print(f"  Confidence reason: {mtd.confidence_reason}")
+        if mtd is None:
+            print("  No month-to-date comparison available.")
+        else:
+            print(f"  data_complete flag: {mtd.data_complete} | confidence: {mtd.confidence}")
+            print(f"  Confidence reason: {mtd.confidence_reason}")
 
 
 if __name__ == "__main__":

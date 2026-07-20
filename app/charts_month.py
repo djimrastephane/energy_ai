@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import pandas as pd
 import plotly.graph_objects as go
-from charts import PALETTE, base_layout
 
+from app.charts import PALETTE, base_layout
 from src.ingestion import EnergyType
 from src.monthly_comparison import MonthlyComparison
 
@@ -47,6 +47,7 @@ def two_month_grouped_bar(
         selected_label = comparison.selected_month.strftime("%B %Y")
     if not categories:
         return None
+    assert selected_label is not None  # set alongside every categories.append
 
     fig = go.Figure(
         [

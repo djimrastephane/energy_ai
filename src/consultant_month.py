@@ -38,7 +38,8 @@ def _build(
     fuel = fuel if fuel is not None else ctx.comparison_fuel
     if mode is None:
         # "Long-term trend" isn't a single-month mode; fall back to the default comparison.
-        mode = ctx.comparison_mode if ctx.comparison_mode != "long_term" else "same_month_last_year"
+        ctx_mode = ctx.comparison_mode
+        mode = ctx_mode if ctx_mode != "long_term" else "same_month_last_year"
     df = ctx.fuel_frames.get(fuel)
     if df is None or df.empty:
         return None
@@ -191,7 +192,10 @@ def answer_was_it_weather(ctx: ConsultantContext) -> ConsultantAnswer:
     comparison = _build(ctx)
     if comparison is None or comparison.percentage_change is None:
         return _no_month_answer(question)
-    if comparison.weather_explained_change_kwh is None:
+    weather_kwh = comparison.weather_explained_change_kwh
+    unexplained_kwh = comparison.unexplained_change_kwh
+    change_kwh = comparison.absolute_change_kwh
+    if weather_kwh is None or unexplained_kwh is None or change_kwh is None:
         return ConsultantAnswer(
             question=question,
             answer=f"The weather model doesn't cover both {comparison.selected_month.strftime('%B %Y')} "
@@ -200,9 +204,6 @@ def answer_was_it_weather(ctx: ConsultantContext) -> ConsultantAnswer:
             confidence="Low",
             related_tab=_COMPARISON_TAB,
         )
-    weather_kwh = comparison.weather_explained_change_kwh
-    unexplained_kwh = comparison.unexplained_change_kwh
-    change_kwh = comparison.absolute_change_kwh
     if comparison.unexplained_change_is_meaningful:
         verdict = "No -- weather does not explain this change."
     elif weather_kwh * change_kwh > 0 and abs(weather_kwh) >= abs(unexplained_kwh):
@@ -265,7 +266,12 @@ def answer_best_or_worst_month(ctx: ConsultantContext) -> ConsultantAnswer:
 def answer_why_expensive(ctx: ConsultantContext) -> ConsultantAnswer:
     question = "Why was this month expensive?"
     comparison = _build(ctx)
-    if comparison is None or comparison.cost_change_gbp is None:
+    if (
+        comparison is None
+        or comparison.cost_change_gbp is None
+        or comparison.current_cost_gbp is None
+        or comparison.comparison_cost_gbp is None
+    ):
         return ConsultantAnswer(
             question=question,
             answer="No cost comparison is available for the selected month.",
@@ -299,7 +305,7 @@ def answer_why_expensive(ctx: ConsultantContext) -> ConsultantAnswer:
         f"{current_bill.billing_period_end.strftime('%d %b')}): {format_gbp(current_bill.standing_charge_gbp)}",
         f"VAT at {(ctx.billing_config or SETTINGS.billing).vat_rate:.0%}: {format_gbp(current_bill.vat_gbp)}",
     ]
-    if comparison.cost_change_from_usage_gbp is not None:
+    if comparison.cost_change_from_usage_gbp is not None and comparison.cost_change_from_rate_gbp is not None:
         usage, rate = comparison.cost_change_from_usage_gbp, comparison.cost_change_from_rate_gbp
 
         def _signed(value: float) -> str:

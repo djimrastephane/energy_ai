@@ -1,7 +1,7 @@
 """Weather-context UI: loading, interpretation-building, and render helpers.
 
-Split into its own module (rather than growing ``tabs_phase2.py``/
-``tabs_phase3.py`` past the ~300-line guideline). The Unusual Months tab
+Split into its own module (rather than growing ``tabs_drivers.py``/
+``tabs_anomalies.py`` past the ~300-line guideline). The Unusual Months tab
 renders per-anomaly weather context via these helpers; the Weather Impact
 tab renders the history-wide severe-weather summary. All statistics come
 from :mod:`src.weather_context`/:mod:`src.weather_interpretation` -- this

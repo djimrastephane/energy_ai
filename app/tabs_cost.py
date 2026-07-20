@@ -5,10 +5,12 @@ its own tab -- it's inherently a cost/consumption-scale comparison).
 
 from __future__ import annotations
 
+from typing import Literal
+
 import pandas as pd
 import streamlit as st
-from tabs_phase3 import generate_multi_fuel_forecast_cached
 
+from app.tabs_forecast import generate_multi_fuel_forecast_cached
 from config import SETTINGS, BillingConfig
 from src.benchmarking import compare_to_benchmark
 from src.billing import bill_breakdown_frame
@@ -36,7 +38,8 @@ def _render_bill_breakdown(
         "exports; the exported cost is treated as the consumption charge excluding VAT "
         "(config.BillingConfig documents that assumption)."
     )
-    available = [f for f in ("total", "electricity", "gas") if not fuel_clean_dfs.get(f, pd.DataFrame()).empty]
+    fuel_options: tuple[EnergyType, ...] = ("total", "electricity", "gas")
+    available = [f for f in fuel_options if not fuel_clean_dfs.get(f, pd.DataFrame()).empty]
     if not available:
         return
     fuel = st.radio(
@@ -99,11 +102,13 @@ def render_cost_intelligence(
         "Never a single 'Energy Score' -- a categorical band (Below/Average/Above average) "
         "against Ofgem/DESNZ published figures, with a +/-15% tolerance for 'Average'."
     )
+    regions: list[Literal["uk", "scotland"]] = ["uk", "scotland"]
     region = st.radio(
-        "Compare against", ["uk", "scotland"], format_func=lambda r: "UK average" if r == "uk" else "Scotland average", horizontal=True
+        "Compare against", regions, format_func=lambda r: "UK average" if r == "uk" else "Scotland average", horizontal=True
     )
     cols = st.columns(2)
-    for col, fuel in zip(cols, ("electricity", "gas"), strict=True):
+    benchmark_fuels: tuple[EnergyType, ...] = ("electricity", "gas")
+    for col, fuel in zip(cols, benchmark_fuels, strict=True):
         df = fuel_clean_dfs.get(fuel)
         with col:
             if df is None or df.empty:

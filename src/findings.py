@@ -196,16 +196,16 @@ def finding_biggest_change(
 
     if changepoints:
         both = [c for c in changepoints if c.method == "both"]
-        top = max(both, key=lambda c: abs(c.magnitude_kwh)) if both else max(changepoints, key=lambda c: abs(c.magnitude_kwh))
-        rating = rate_changepoint(top)
+        top_cp = max(both, key=lambda c: abs(c.magnitude_kwh)) if both else max(changepoints, key=lambda c: abs(c.magnitude_kwh))
+        rating = rate_changepoint(top_cp)
         narrative = (
-            f"A sustained {top.direction} in consumption began around {top.date.strftime('%B %Y')} "
-            f"(change of about {abs(top.magnitude_kwh):.0f} kWh/month)."
+            f"A sustained {top_cp.direction} in consumption began around {top_cp.date.strftime('%B %Y')} "
+            f"(change of about {abs(top_cp.magnitude_kwh):.0f} kWh/month)."
         )
         return Finding(
             title="Biggest finding",
             narrative=narrative,
-            evidence=[f"Detected by: {top.method}", f"Magnitude: {top.magnitude_kwh:+.0f} kWh"],
+            evidence=[f"Detected by: {top_cp.method}", f"Magnitude: {top_cp.magnitude_kwh:+.0f} kWh"],
             confidence=rating.level,
             confidence_reason=rating.reason,
             category="changepoint",

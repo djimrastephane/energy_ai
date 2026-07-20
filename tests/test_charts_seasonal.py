@@ -1,16 +1,10 @@
-import sys
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
-
-from charts_seasonal import seasonal_calendar_profile_figure, seasonal_overview_figure  # noqa: E402
-
-from src.anomalies import Anomaly  # noqa: E402
-from src.decomposition import stl_decompose  # noqa: E402
-from src.seasonal_summary import seasonal_profile  # noqa: E402
+from app.charts_seasonal import seasonal_calendar_profile_figure, seasonal_overview_figure
+from src.anomalies import Anomaly
+from src.decomposition import stl_decompose
+from src.seasonal_summary import seasonal_profile
 
 
 def _clean_df(n=36, start="2022-01-01", amplitude=80.0, trend_per_month=0.0, spike_at=None, spike_size=0.0):

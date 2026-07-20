@@ -9,6 +9,8 @@ conclusions, never to invent new ones (see the module docstring on
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 import pandas as pd
 import streamlit as st
 
@@ -37,10 +39,10 @@ def build_report(
     anomalies: list[Anomaly],
     forecast_result: ForecastResult | None,
     fuel: str = "total",
-    fuel_clean_dfs: dict[EnergyType, pd.DataFrame] | None = None,
-    fuel_stl_results: dict[EnergyType, STLResult | None] | None = None,
-    fuel_energy_results: dict[EnergyType, EnergySignatureResult | None] | None = None,
-    fuel_anomalies: dict[EnergyType, list[Anomaly]] | None = None,
+    fuel_clean_dfs: Mapping[EnergyType, pd.DataFrame] | None = None,
+    fuel_stl_results: Mapping[EnergyType, STLResult | None] | None = None,
+    fuel_energy_results: Mapping[EnergyType, EnergySignatureResult | None] | None = None,
+    fuel_anomalies: Mapping[EnergyType, list[Anomaly]] | None = None,
 ) -> AnalystReport:
     """Thin wrapper around ``build_analyst_report``, deliberately uncached.
 

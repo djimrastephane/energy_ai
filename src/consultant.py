@@ -28,6 +28,7 @@ from src.energy_signature import EnergySignatureResult
 from src.forecast_evaluation import ForecastResult
 from src.ingestion import EnergyType
 from src.kpis import winter_over_winter_comparison
+from src.monthly_comparison import DisplayMode
 from src.recommendations import NO_RECOMMENDATIONS_MESSAGE
 from src.report import AnalystReport
 from src.utils import format_gbp, safe_divide
@@ -66,7 +67,7 @@ class ConsultantContext:
     # mirrored from the same session state that page renders, so month-comparison answers
     # (src.consultant_month) always describe what the user is looking at, never stale state.
     selected_comparison_month: pd.Timestamp | None = None
-    comparison_mode: str = "same_month_last_year"  # a ComparisonMode, or "long_term"
+    comparison_mode: DisplayMode = "same_month_last_year"
     comparison_fuel: EnergyType = "total"
     # Per-fuel merged consumption+weather frames (needed to split a month's change into
     # weather-explained and unexplained parts); None when weather is off.

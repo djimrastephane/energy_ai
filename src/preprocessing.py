@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
+from config import ValidationThresholds
 from src.utils import get_logger, safe_divide
 
 logger = get_logger(__name__)
@@ -97,7 +98,7 @@ def validate_timestamps(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def validate_units(
-    df: pd.DataFrame, thresholds: object | None = None
+    df: pd.DataFrame, thresholds: ValidationThresholds | None = None
 ) -> tuple[pd.DataFrame, list[str]]:
     """Flag (never drop) negative or implausible cost/consumption/unit-rate values."""
     from config import SETTINGS

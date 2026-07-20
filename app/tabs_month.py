@@ -16,13 +16,15 @@ clearly-labelled month-to-date figure -- never annualized or extrapolated.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Final, cast
 
 import pandas as pd
 import streamlit as st
-from charts import year_over_year_overlay
-from charts_month import same_month_history_bar, two_month_grouped_bar
 
+from app.charts import year_over_year_overlay
+from app.charts_month import same_month_history_bar, two_month_grouped_bar
 from config import SETTINGS, BillingConfig
 from src.anomalies import Anomaly
 from src.billing import bill_breakdown
@@ -32,6 +34,7 @@ from src.kpis import compute_kpis
 from src.monthly_comparison import (
     COMPARISON_MODE_LABELS,
     ComparisonMode,
+    DisplayMode,
     FuelContributions,
     MonthlyComparison,
     build_monthly_comparison,
@@ -48,9 +51,10 @@ MONTH_KEY = "month_cmp_selected"
 FUEL_KEY = "month_cmp_fuel"
 MODE_KEY = "month_cmp_mode"
 
-LONG_TERM_MODE = "long_term"
-_MODE_OPTIONS: list[str] = [*COMPARISON_MODE_LABELS, LONG_TERM_MODE]
-MODE_DISPLAY_LABELS: dict[str, str] = {**COMPARISON_MODE_LABELS, LONG_TERM_MODE: "Long-term trend"}
+LONG_TERM_MODE: Final = "long_term"
+_MODE_OPTIONS: list[DisplayMode] = [*COMPARISON_MODE_LABELS, LONG_TERM_MODE]
+MODE_DISPLAY_LABELS: dict[DisplayMode, str] = {m: label for m, label in COMPARISON_MODE_LABELS.items()}
+MODE_DISPLAY_LABELS[LONG_TERM_MODE] = "Long-term trend"
 
 _FUEL_OPTIONS: list[EnergyType] = ["total", "electricity", "gas"]
 FUEL_DISPLAY_LABELS: dict[EnergyType, str] = {
@@ -67,7 +71,7 @@ class MonthContext:
     """Everything the month-comparison surfaces need, built once per rerun."""
 
     selected_month: pd.Timestamp | None
-    mode: str  # a ComparisonMode, or LONG_TERM_MODE
+    mode: DisplayMode
     fuel: EnergyType
     comparisons: dict[EnergyType, MonthlyComparison | None]
     featured: MonthlyComparison | None  # comparisons[fuel]
@@ -82,8 +86,8 @@ class MonthContext:
 
 def build_month_context(
     fuel_frames: dict[EnergyType, pd.DataFrame],
-    fuel_merged: dict[EnergyType, pd.DataFrame | None],
-    fuel_energy_results: dict[EnergyType, EnergySignatureResult | None],
+    fuel_merged: Mapping[EnergyType, pd.DataFrame | None],
+    fuel_energy_results: Mapping[EnergyType, EnergySignatureResult | None],
     weather_enabled: bool,
     today: pd.Timestamp | None = None,
     billing_config: BillingConfig | None = None,
@@ -116,6 +120,8 @@ def build_month_context(
     if mode not in _MODE_OPTIONS:
         mode = "same_month_last_year"
         st.session_state.pop(MODE_KEY, None)
+    fuel = cast(EnergyType, fuel)  # both validated against their option lists above
+    mode = cast(DisplayMode, mode)
 
     comparisons: dict[EnergyType, MonthlyComparison | None] = {}
     build_mode: ComparisonMode = mode if mode != LONG_TERM_MODE else "same_month_last_year"

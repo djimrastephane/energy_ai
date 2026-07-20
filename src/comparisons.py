@@ -12,6 +12,7 @@ duplicate logic" principle this phase is scoped to.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 import numpy as np
@@ -102,7 +103,7 @@ class WeatherSensitivityShares:
 
 
 def compute_weather_sensitivity_shares(
-    fuel_energy_results: dict[EnergyType, EnergySignatureResult | None],
+    fuel_energy_results: Mapping[EnergyType, EnergySignatureResult | None],
 ) -> WeatherSensitivityShares | None:
     """Normalized share of the two fuels' combined heating-degree-day slope.
 
@@ -137,7 +138,7 @@ def compute_weather_sensitivity_shares(
 
 
 def compare_weather_sensitivity(
-    fuel_energy_results: dict[EnergyType, EnergySignatureResult | None],
+    fuel_energy_results: Mapping[EnergyType, EnergySignatureResult | None],
 ) -> Finding | None:
     """Task 5 -- weather attribution: which fuel's usage responds more strongly to weather.
 

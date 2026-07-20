@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
-from charts_comparisons import annual_comparison_bar
 
+from app.charts_comparisons import annual_comparison_bar
 from src.anomalies import Anomaly
 from src.comparisons import (
     compare_annual_totals,

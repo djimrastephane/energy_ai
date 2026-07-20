@@ -6,8 +6,8 @@ rationale -- this tab explains analysis, it never runs any.
 from __future__ import annotations
 
 import streamlit as st
-from tabs_month import FUEL_DISPLAY_LABELS, MODE_DISPLAY_LABELS
 
+from app.tabs_month import FUEL_DISPLAY_LABELS, MODE_DISPLAY_LABELS
 from src.consultant import ConsultantAnswer, ConsultantContext
 from src.consultant_router import QUESTIONS, route_question
 

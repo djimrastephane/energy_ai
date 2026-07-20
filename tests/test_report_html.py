@@ -1,19 +1,13 @@
-import sys
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
-
-from report_html import build_household_report_html  # noqa: E402
-
-from src.confidence import ConfidenceRating  # noqa: E402
-from src.findings import Finding  # noqa: E402
-from src.preprocessing import PreprocessingReport  # noqa: E402
-from src.recommendations import NO_RECOMMENDATIONS_MESSAGE, Recommendation  # noqa: E402
-from src.report import AnalystReport  # noqa: E402
+from app.report_html import build_household_report_html
+from src.confidence import ConfidenceRating
+from src.findings import Finding
+from src.preprocessing import PreprocessingReport
+from src.recommendations import NO_RECOMMENDATIONS_MESSAGE, Recommendation
+from src.report import AnalystReport
 
 _SECTION_HEADINGS = [
     "Household Energy Review",

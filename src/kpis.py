@@ -61,37 +61,37 @@ def compute_kpis(df: pd.DataFrame, months: int = 12) -> list[KPIComparison]:
             "Total consumption",
             "kWh",
             current["consumption_kwh"].sum(),
-            previous["consumption_kwh"].sum() if has_previous else None,
+            previous["consumption_kwh"].sum() if previous is not None else None,
         ),
         (
             "Total cost",
             "£",
             current["cost_gbp"].sum(),
-            previous["cost_gbp"].sum() if has_previous else None,
+            previous["cost_gbp"].sum() if previous is not None else None,
         ),
         (
             "Average monthly consumption",
             "kWh",
             current["consumption_kwh"].mean(),
-            previous["consumption_kwh"].mean() if has_previous else None,
+            previous["consumption_kwh"].mean() if previous is not None else None,
         ),
         (
             "Average daily consumption",
             "kWh",
             _weighted_avg_daily(current, "consumption_kwh"),
-            _weighted_avg_daily(previous, "consumption_kwh") if has_previous else None,
+            _weighted_avg_daily(previous, "consumption_kwh") if previous is not None else None,
         ),
         (
             "Average monthly cost",
             "£",
             current["cost_gbp"].mean(),
-            previous["cost_gbp"].mean() if has_previous else None,
+            previous["cost_gbp"].mean() if previous is not None else None,
         ),
         (
             "Average cost per kWh",
             "£/kWh",
             _weighted_unit_rate(current),
-            _weighted_unit_rate(previous) if has_previous else None,
+            _weighted_unit_rate(previous) if previous is not None else None,
         ),
     ]
 

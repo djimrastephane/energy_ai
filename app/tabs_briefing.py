@@ -18,11 +18,12 @@ from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
-from tabs_month import MonthContext
 
+from app.tabs_month import MonthContext
 from config import SETTINGS, BillingConfig
 from src.billing import standing_charge_for_months
 from src.forecast_evaluation import ForecastResult
+from src.ingestion import EnergyType
 from src.report import NO_SAVINGS_MESSAGE, AnalystReport
 
 _CONFIDENCE_ICON = {"High": "🟢", "Medium": "🟡", "Low": "🔴"}
@@ -136,7 +137,7 @@ def render_executive_briefing(
     forecast_12mo: ForecastResult | None,
     forecast_error: str | None,
     month_ctx: MonthContext,
-    fuel: str = "total",
+    fuel: EnergyType = "total",
     billing_config: BillingConfig | None = None,
 ) -> None:
     billing_config = billing_config or SETTINGS.billing

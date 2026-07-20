@@ -1,21 +1,19 @@
 """AI Home Energy Intelligence Platform -- Streamlit app.
 
-Phase 1: data ingestion/validation, descriptive statistics, core KPIs.
-Phase 2: STL seasonality/trend decomposition, weather-adjusted "energy
+The analysis layers: data ingestion/validation, descriptive statistics, and
+core KPIs; STL seasonality/trend decomposition, weather-adjusted "energy
 signature" regression (Open-Meteo, opt-in via the sidebar toggle since it
-needs a network call), and change-point detection. Phase 3: an 8-model
-forecasting suite compared by walk-forward cross-validation with
-auto-selection and P10/P50/P90 bands, plus anomaly detection (rolling
-z-score, STL-residual ESD, Isolation Forest). Decision-support layer: a
-findings/recommendations/confidence engine (``src.report``) turns those
-outputs into an Executive Briefing and a full AI Analyst report -- no new
-statistics, purely synthesis of what's already computed. Phase 4: multi-fuel
-comparisons, cost intelligence, carbon estimates, and UK/Scotland
-benchmarking (``src.comparisons``, ``src.cross_fuel_anomalies``,
-``src.cost_engine``, ``src.carbon``, ``src.benchmarking``) -- the sidebar's
-Fuel selector already made every earlier module generic over Electricity/
-Gas/Total, so Phase 4 only adds what's genuinely new: comparing those
-already-computed per-fuel results against each other.
+needs a network call), and change-point detection; an 8-model forecasting
+suite compared by walk-forward cross-validation with auto-selection and
+P10/P50/P90 bands, plus anomaly detection (rolling z-score, STL-residual
+ESD, Isolation Forest). A decision-support layer -- the findings/
+recommendations/confidence engine (``src.report``) -- turns those outputs
+into an Executive Briefing and a full AI Analyst report: no new statistics,
+purely synthesis of what's already computed. Multi-fuel intelligence
+(``src.comparisons``, ``src.cross_fuel_anomalies``, ``src.cost_engine``,
+``src.carbon``, ``src.benchmarking``) compares the already-computed per-fuel
+results against each other -- the sidebar's Fuel selector makes every module
+generic over Electricity/Gas/Total.
 
 Change-point detection, anomaly detection, and (if enabled) the weather fit
 are computed once here in ``main()`` for the selected fuel (and, via
@@ -30,61 +28,53 @@ compare? / What drives my usage? / ...), with the month-comparison journey
 surface: latest complete month vs. the same calendar month last year.
 Whole-period and method-level views remain available under Long-term trends
 and Data and methods. Sidebar controls live in ``app/sidebar.py``; tab
-rendering logic lives in ``tabs_core.py`` (Phase 1), ``tabs_phase2.py``
-(Phase 2), ``tabs_phase3.py`` (Phase 3), ``tabs_briefing.py``/
-``tabs_analyst.py`` (decision-support), ``tabs_fuel.py``/
-``tabs_comparisons.py``/``tabs_cost.py``/``tabs_carbon.py`` (Phase 4), and
-``tabs_month.py`` (month comparison) -- this module is just top-level
-orchestration.
+rendering logic lives in the ``tabs_*`` modules, named for what they render
+(``tabs_core.py`` for data quality/statistics/consumption, ``tabs_drivers.py``
+for seasons/weather/usage shifts, ``tabs_forecast.py``/``tabs_anomalies.py``,
+``tabs_briefing.py``/``tabs_analyst.py`` for decision support, ``tabs_fuel.py``/
+``tabs_comparisons.py``/``tabs_cost.py``/``tabs_carbon.py`` for multi-fuel and
+costs, and ``tabs_month.py`` for the month comparison) -- this module is just
+top-level orchestration.
 """
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
+import streamlit as st
 
-APP_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = APP_DIR.parent
-for _p in (PROJECT_ROOT, APP_DIR):
-    if str(_p) not in sys.path:
-        sys.path.insert(0, str(_p))
-
-import streamlit as st  # noqa: E402
-from multi_fuel import compute_all_fuel_analysis  # noqa: E402
-from report_html import build_household_report_html  # noqa: E402
-from sidebar import render_sidebar  # noqa: E402
-from tabs_analyst import build_report, render_ai_analyst  # noqa: E402
-from tabs_briefing import render_executive_briefing  # noqa: E402
-from tabs_carbon import render_carbon  # noqa: E402
-from tabs_comparisons import render_comparisons  # noqa: E402
-from tabs_consultant import render_consultant  # noqa: E402
-from tabs_core import (  # noqa: E402
+from app.multi_fuel import compute_all_fuel_analysis
+from app.report_html import build_household_report_html
+from app.sidebar import render_sidebar
+from app.tabs_analyst import build_report, render_ai_analyst
+from app.tabs_anomalies import render_anomalies
+from app.tabs_briefing import render_executive_briefing
+from app.tabs_carbon import render_carbon
+from app.tabs_comparisons import render_comparisons
+from app.tabs_consultant import render_consultant
+from app.tabs_core import (
     render_consumption_analysis,
     render_data_quality,
     render_statistical_analysis,
 )
-from tabs_cost import render_cost_intelligence  # noqa: E402
-from tabs_fuel import render_fuel_breakdown  # noqa: E402
-from tabs_month import build_month_context, render_month_comparison  # noqa: E402
-from tabs_phase2 import (  # noqa: E402
+from app.tabs_cost import render_cost_intelligence
+from app.tabs_drivers import (
     render_change_points,
     render_seasonality,
     render_weather_adjustment,
 )
-from tabs_phase3 import (  # noqa: E402
+from app.tabs_forecast import (
     generate_forecast_cached,
     generate_multi_fuel_forecast_cached,
-    render_anomalies,
     render_forecasting,
 )
-from tabs_weather_context import (  # noqa: E402
+from app.tabs_fuel import render_fuel_breakdown
+from app.tabs_month import build_month_context, render_month_comparison
+from app.tabs_weather_context import (
     build_weather_interpretations,
     load_weather_context,
 )
-
-from src.changepoints import detect_changepoints  # noqa: E402
-from src.consultant import ConsultantContext  # noqa: E402
-from src.weather import WeatherFetchError  # noqa: E402
+from src.changepoints import detect_changepoints
+from src.consultant import ConsultantContext
+from src.weather import WeatherFetchError
 
 st.set_page_config(page_title="AI Home Energy Intelligence Platform", layout="wide")
 

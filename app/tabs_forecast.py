@@ -1,36 +1,30 @@
-"""Phase 3 tab renderers: Forecasting, Anomaly Detection.
+"""Forecasting tab renderer plus the cached forecast generators.
 
-Split out to match the ``tabs_core.py``/``tabs_phase2.py`` pattern.
-Anomaly detection is computed once in ``streamlit_app.main()`` (not here)
-since the Executive Briefing and AI Analyst pages need the same list --
-see ``app/tabs_phase2.py``'s module docstring for why.
+Split out to match the ``tabs_core.py``/``tabs_drivers.py`` pattern; the
+Unusual Months renderer lives in ``tabs_anomalies.py``. The cached
+generators here are shared by the Forecasting tab, the Executive Briefing,
+the Cost Intelligence tab, and the Comparisons tab.
 """
 
 from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
-from charts_phase3 import anomaly_scatter, forecast_fan_chart, model_comparison_bar
-from tabs_weather_context import render_severe_weather_sections
 
+from app.charts_forecast import forecast_fan_chart, model_comparison_bar
 from config import SETTINGS, BillingConfig
-from src.anomalies import Anomaly, interpret_anomalies
 from src.billing import standing_charge_for_months
 from src.confidence import rate_forecast
-from src.energy_signature import EnergySignatureResult
 from src.forecast_evaluation import ForecastResult, generate_forecast
 from src.ingestion import EnergyType
-from src.investigation import build_investigation_checklist
 from src.monthly_comparison import is_month_complete
-from src.weather_context import WeatherContextClassification
-from src.weather_interpretation import UnusualMonthInterpretation
 
 
 @st.cache_data(show_spinner="Cross-validating forecasting models...")
 def generate_forecast_cached(clean: pd.DataFrame, horizon: int, model_name: str) -> ForecastResult:
     """Cached wrapper around ``src.forecast_evaluation.generate_forecast``.
 
-    No network call is involved (unlike Phase 2's weather fetch) -- this is
+    No network call is involved (unlike ``tabs_drivers``'s weather fetch) -- this is
     purely CPU-bound and fast enough (benchmarked well under 10s for the
     full 8-model comparison on the real data) to run automatically, but is
     still cached since Streamlit reruns the whole script on every widget
@@ -193,69 +187,3 @@ def render_forecasting(
             columns={"model": "Model", "mae": "MAE", "rmse": "RMSE", "mape": "MAPE (%)", "n_folds": "CV folds"}
         ).round(1)
         st.dataframe(display, hide_index=True, width="stretch")
-
-
-def render_anomalies(
-    clean: pd.DataFrame,
-    stl_error: str | None,
-    anomalies: list[Anomaly],
-    merged: pd.DataFrame | None,
-    energy_result: EnergySignatureResult | None,
-    weather_interpretations: dict[
-        pd.Timestamp, tuple[WeatherContextClassification, UnusualMonthInterpretation]
-    ]
-    | None = None,
-    weather_context_df: pd.DataFrame | None = None,
-    daily_weather: pd.DataFrame | None = None,
-) -> None:
-    st.caption(
-        "Detected on the deseasonalized STL residual, so a normal winter isn't mistaken for "
-        "an anomaly. Uses full history regardless of the sidebar year filter."
-    )
-    if stl_error:
-        st.warning(stl_error)
-        return
-
-    series = clean.set_index("month_start")["consumption_kwh"]
-    st.plotly_chart(anomaly_scatter(series, anomalies), width="stretch")
-    st.write(interpret_anomalies(anomalies))
-
-    if not anomalies:
-        st.caption(
-            "Three independent methods (rolling z-score, STL-residual ESD, Isolation Forest) are "
-            "cross-referenced -- a month flagged by 2 or more is meaningfully more likely to be "
-            "real than one flagged by a single method."
-        )
-        return
-
-    rows = [
-        {
-            "Date": a.date.strftime("%B %Y"),
-            "Methods": ", ".join(a.methods),
-            "Direction": a.direction,
-            "Context": a.rank_context,
-        }
-        for a in anomalies
-    ]
-    st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
-    st.caption(
-        "At ~35 months of history, a single method's nominal confidence level doesn't translate "
-        "to its real-world false-positive rate (documented in src/esd.py for the ESD method "
-        "specifically) -- treat single-method flags as worth a look, not statistically certain."
-    )
-
-    for a in anomalies:
-        checklist = build_investigation_checklist(a.date, clean, merged, energy_result)
-        with st.expander(f"Possible causes: {a.date.strftime('%B %Y')}"):
-            for item in checklist.items:
-                marker = "✅" if item.checked else "⬜"
-                st.write(f"{marker} **{item.label}** -- {item.reason}")
-
-    if weather_interpretations and weather_context_df is not None and daily_weather is not None:
-        st.divider()
-        render_severe_weather_sections(anomalies, weather_interpretations, weather_context_df, daily_weather)
-    elif anomalies:
-        st.caption(
-            "Turn on 'Weather adjustment' in the sidebar to also see each flagged month's "
-            "severe-weather context (snow, strong wind, heavy rain)."
-        )

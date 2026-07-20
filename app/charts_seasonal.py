@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import pandas as pd
 import plotly.graph_objects as go
-from charts import PALETTE, base_layout
 
+from app.charts import PALETTE, base_layout
 from src.anomalies import Anomaly
 from src.decomposition import STLResult
 

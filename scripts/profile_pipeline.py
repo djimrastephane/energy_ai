@@ -9,11 +9,9 @@ measurements), so import-order lint rules are disabled for this file.
 # ruff: noqa: E402, I001
 
 import resource
-import sys
 import time
 import warnings
 
-sys.path.insert(0, ".")
 warnings.filterwarnings("ignore")
 
 TIMINGS: dict[str, float] = {}
@@ -112,9 +110,8 @@ with timed("consultant: route_question x13 phrasings"):
         route_question(p, ctx)
 
 # --- chart builders (all main figures, built once each) ---
-sys.path.insert(0, "app")
-from charts import annual_totals_bar, monthly_consumption_bar, rolling_average_line, year_over_year_overlay  # noqa: E402
-from charts_fuel import fuel_comparison_bar, fuel_mix_annual_stacked_bar, fuel_share_area  # noqa: E402
+from app.charts import annual_totals_bar, monthly_consumption_bar, rolling_average_line, year_over_year_overlay  # noqa: E402
+from app.charts_fuel import fuel_comparison_bar, fuel_mix_annual_stacked_bar, fuel_share_area  # noqa: E402
 from src.fuel import combine_fuel_frames  # noqa: E402
 
 combined = combine_fuel_frames(fuel_clean["electricity"], fuel_clean["gas"])

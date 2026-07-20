@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import pandas as pd
 import plotly.graph_objects as go
-from charts import PALETTE, base_layout
+
+from app.charts import PALETTE, base_layout
 
 _FUEL_COLOR = {"electricity": PALETTE[0], "gas": PALETTE[1], "total": PALETTE[3]}
 _FUEL_LABEL = {"electricity": "Electricity", "gas": "Gas", "total": "Total"}

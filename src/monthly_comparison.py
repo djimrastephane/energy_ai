@@ -37,6 +37,10 @@ ComparisonMode = Literal[
     "worst_month",  # June 2026 vs the highest-consumption previous June
 ]
 
+# The UI's mode selector (and the Consultant's stored state) also offers a
+# "Long-term trend" view that isn't a single-month comparison.
+DisplayMode = ComparisonMode | Literal["long_term"]
+
 COMPARISON_MODE_LABELS: dict[ComparisonMode, str] = {
     "same_month_last_year": "Same month last year",
     "previous_month": "Previous complete month",
@@ -463,7 +467,7 @@ def build_monthly_comparison(
     current_days = float(current_row["days_in_month"])
 
     if mode == "typical_month":
-        comparison_kwh: float | None = float(history["consumption_kwh"].median())
+        comparison_kwh = float(history["consumption_kwh"].median())
         comparison_cost = float(history["cost_gbp"].median()) if history["cost_gbp"].notna().all() else None
         comparison_days = float(history["days_in_month"].median())
     else:
@@ -610,12 +614,14 @@ def _interpret(
         if mode == "best_month":
             if percentage < 0:
                 return f"{month_label} is your best {month_name} on record."
+            assert comparison_month is not None  # best/worst always name a real month
             return (
                 f"{month_label} used {abs(percentage):.0f}% more than your best recorded "
                 f"{month_name} ({comparison_month.year})."
             )
         if percentage > 0:
             return f"{month_label} is your worst {month_name} on record."
+        assert comparison_month is not None  # best/worst always name a real month
         return (
             f"{month_label} used {abs(percentage):.0f}% less than your worst recorded "
             f"{month_name} ({comparison_month.year})."
@@ -676,6 +682,7 @@ def fuel_contributions(
     total_change = total.absolute_change_kwh
     elec_change = electricity.absolute_change_kwh
     gas_change = gas.absolute_change_kwh
+    dominant: EnergyType | None
     if abs(total_change) < 1e-9:
         elec_share = gas_share = None
         dominant = None

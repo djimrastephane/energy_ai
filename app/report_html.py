@@ -14,13 +14,13 @@ from datetime import date
 from pathlib import Path
 
 import pandas as pd
-from charts import energy_signature_scatter, monthly_consumption_bar, year_over_year_overlay
-from charts_fuel import fuel_comparison_bar, fuel_mix_annual_stacked_bar
-from charts_phase3 import forecast_fan_chart
 from jinja2 import Environment, FileSystemLoader
 from markupsafe import Markup
 from plotly.graph_objects import Figure
 
+from app.charts import energy_signature_scatter, monthly_consumption_bar, year_over_year_overlay
+from app.charts_forecast import forecast_fan_chart
+from app.charts_fuel import fuel_comparison_bar, fuel_mix_annual_stacked_bar
 from config import SETTINGS
 from src.benchmarking import compare_to_benchmark
 from src.carbon import combined_annual_emissions

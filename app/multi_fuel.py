@@ -10,15 +10,15 @@ latency. Results are deterministic (fixed seeds throughout), so caching cannot c
 
 Forecasting is deliberately NOT computed here -- walk-forward CV across up to 8 models is the
 one genuinely expensive step in this pipeline, so the multi-fuel forecast comparison stays an
-opt-in button (see ``tabs_phase3.generate_multi_fuel_forecast_cached``).
+opt-in button (see ``tabs_forecast.generate_multi_fuel_forecast_cached``).
 """
 
 from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
-from tabs_phase2 import load_weather_analysis
 
+from app.tabs_drivers import load_weather_analysis
 from src.anomalies import Anomaly, detect_anomalies
 from src.decomposition import STLResult, stl_decompose
 from src.energy_signature import EnergySignatureResult

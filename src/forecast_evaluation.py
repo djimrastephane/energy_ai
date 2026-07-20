@@ -188,9 +188,10 @@ def generate_forecast(
     else:
         if model_name not in MODEL_REGISTRY:
             raise ValueError(f"Unknown model {model_name!r}; choose from {list(MODEL_REGISTRY)} or 'auto'.")
-        chosen = next((r for r in cv_results if r.name == model_name), None)
-        if chosen is None:
+        forced = next((r for r in cv_results if r.name == model_name), None)
+        if forced is None:
             raise ValueError(f"{model_name!r} did not produce any valid CV folds on this series.")
+        chosen = forced
 
     point_forecast = np.asarray(MODEL_REGISTRY[chosen.name](series, horizon), dtype=float)
     p10, p50, p90 = bootstrap_forecast_bands(point_forecast, chosen.residuals)

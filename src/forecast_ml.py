@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 import warnings
-from typing import Protocol
+from typing import Any, Protocol
 
 import numpy as np
 import pandas as pd
@@ -26,7 +26,7 @@ logging.getLogger("cmdstanpy").setLevel(logging.ERROR)
 
 _FEATURE_COLUMNS = ["time_idx", "month_sin", "month_cos", "lag_1", "lag_12"]
 # Deliberately conservative given n around 25-35 observations: shallow trees, few of them.
-_TREE_KWARGS = {"n_estimators": 50, "max_depth": 3, "random_state": 42}
+_TREE_KWARGS: dict[str, Any] = {"n_estimators": 50, "max_depth": 3, "random_state": 42}
 
 
 class _SklearnLikeRegressor(Protocol):

@@ -11,13 +11,13 @@ import dataclasses
 
 import pandas as pd
 import streamlit as st
-from charts import (
+
+from app.charts import (
     annual_totals_bar,
     monthly_consumption_bar,
     rolling_average_line,
     year_over_year_overlay,
 )
-
 from src.preprocessing import PreprocessingReport
 from src.statistics import describe, interpret
 

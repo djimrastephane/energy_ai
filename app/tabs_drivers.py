@@ -1,4 +1,4 @@
-"""Phase 2 tab renderers: Seasonality & Trend, Weather Adjustment, Change Points.
+"""Usage-driver tab renderers: Seasons, Weather impact, and Usage shifts (change points).
 
 Split out of ``streamlit_app.py`` to keep that module under the project's
 preferred ~300-line-per-file guideline.
@@ -14,10 +14,10 @@ from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
-from charts import changepoint_timeline, energy_signature_scatter, stl_components_figure
-from charts_seasonal import seasonal_calendar_profile_figure, seasonal_overview_figure
-from tabs_weather_context import render_weather_impact_summary
 
+from app.charts import changepoint_timeline, energy_signature_scatter, stl_components_figure
+from app.charts_seasonal import seasonal_calendar_profile_figure, seasonal_overview_figure
+from app.tabs_weather_context import render_weather_impact_summary
 from config import SETTINGS
 from src.anomalies import Anomaly
 from src.changepoints import ChangePoint
@@ -94,8 +94,8 @@ def render_seasonality(
     unchanged in the "Advanced statistical decomposition" expander at the bottom.
     """
     st.caption("Uses full history regardless of the sidebar year filter (STL needs a contiguous series).")
-    if stl_error:
-        st.warning(stl_error)
+    if stl_error or stl_result is None:
+        st.warning(stl_error or "Seasonal decomposition is unavailable for this fuel.")
         return
 
     summary = summarize_seasonal_pattern(stl_result, anomalies)
@@ -175,8 +175,8 @@ def render_weather_adjustment(
             "the weather-adjusted energy signature (requires internet access to Open-Meteo)."
         )
         return
-    if weather_error:
-        st.warning(f"Could not fetch or fit weather data: {weather_error}")
+    if weather_error or merged is None or result is None:
+        st.warning(f"Could not fetch or fit weather data: {weather_error or 'no weather fit available'}")
         return
 
     unit_rate = merged["cost_gbp"].sum() / merged["consumption_kwh"].sum()
@@ -271,8 +271,8 @@ def render_change_points(
         "Detected on the deseasonalized series (trend + residual) so the regular winter/summer "
         "swing isn't mistaken for a behavioural shift. Uses full history regardless of the year filter."
     )
-    if stl_error:
-        st.warning(stl_error)
+    if stl_error or stl_result is None:
+        st.warning(stl_error or "Seasonal decomposition is unavailable for this fuel.")
         return
 
     st.plotly_chart(changepoint_timeline(stl_result.deseasonalized, changepoints), width="stretch")

@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
-from charts_fuel import fuel_comparison_bar, fuel_mix_annual_stacked_bar, fuel_share_area
 
+from app.charts_fuel import fuel_comparison_bar, fuel_mix_annual_stacked_bar, fuel_share_area
 from src.fuel import combine_fuel_frames, finding_fuel_mix
 
 _UNAVAILABLE_MESSAGE = (

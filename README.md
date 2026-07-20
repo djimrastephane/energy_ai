@@ -83,7 +83,7 @@ detail sections, and the uncertainty band visibly fades with the horizon.
 ```bash
 cd energy_ai
 python3 -m venv .venv
-./.venv/bin/pip install -r requirements.txt
+./.venv/bin/pip install -r requirements.lock && ./.venv/bin/pip install -e . --no-deps
 ./.venv/bin/streamlit run app/streamlit_app.py
 ```
 
@@ -93,7 +93,13 @@ or served from the disk cache):
 ```bash
 ./.venv/bin/pytest -v
 ./.venv/bin/ruff check src tests app config.py scripts
+./.venv/bin/mypy
 ```
+
+Dependencies are declared in `pyproject.toml` (floor versions); CI and the
+quick start install from `requirements.lock`, the exact known-good set. To
+upgrade: bump the floor in `pyproject.toml` if needed, then regenerate the
+lock with `pip install -e ".[dev]" && pip freeze --exclude-editable > requirements.lock`.
 
 ## Your data
 

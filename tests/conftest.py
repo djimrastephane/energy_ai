@@ -1,8 +1,5 @@
-"""Ensure the project root (energy_ai/) is importable as 'config' and 'src.*'."""
+"""Shared pytest configuration.
 
-import sys
-from pathlib import Path
-
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+The project is installed editable (`pip install -e ".[dev]"`), so ``config``,
+``src.*``, and ``app.*`` import without any path manipulation.
+"""

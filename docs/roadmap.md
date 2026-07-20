@@ -28,7 +28,8 @@ pytest suite (unit + integration + UI smoke test).
 - New Streamlit tabs: Seasonality & Trend, Weather Adjustment (opt-in via a
   sidebar toggle, off by default so the app stays network-free until asked),
   Change Points. `app/streamlit_app.py` was split into
-  `tabs_core.py`/`tabs_phase2.py` to stay under the ~300-line guideline.
+  `tabs_core.py`/`tabs_drivers.py` (named `tabs_phase2.py` until the 2026-07
+  packaging cleanup) to stay under the ~300-line guideline.
 
 ## Phase 3 -- done
 
@@ -64,7 +65,7 @@ pytest suite (unit + integration + UI smoke test).
 - New Streamlit tabs: Forecasting (model comparison + fan chart), Anomaly
   Detection. Executive Summary's "Forecast annual bill" placeholder is now
   a real KPI. `app/charts.py` and `app/streamlit_app.py` were further split
-  (`charts_phase3.py`, `tabs_phase3.py`) to stay under ~300 lines/file.
+  (now `charts_forecast.py`, `tabs_forecast.py`/`tabs_anomalies.py`) to stay under ~300 lines/file.
 
 ## Decision-support layer -- done
 

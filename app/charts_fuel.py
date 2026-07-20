@@ -1,6 +1,6 @@
 """Fuel-level chart builders: electricity vs. gas comparison.
 
-Split out for the same reason as ``charts_phase3.py`` -- one concern per
+Split out for the same reason as ``charts_forecast.py`` -- one concern per
 module, reusing ``charts.py``'s palette/layout conventions.
 """
 
@@ -9,7 +9,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-from charts import PALETTE, base_layout
+
+from app.charts import PALETTE, base_layout
 
 
 def fuel_comparison_bar(combined_df: pd.DataFrame) -> go.Figure:

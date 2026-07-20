@@ -91,7 +91,7 @@ def detect_changepoints_cusum(
     return [series.index[i] for i in indices]
 
 
-def _magnitude_and_direction(series: pd.Series, date: pd.Timestamp) -> tuple[float, str]:
+def _magnitude_and_direction(series: pd.Series, date: pd.Timestamp) -> tuple[float, Literal["increase", "decrease"]]:
     idx = series.index.get_loc(date)
     before, after = series.iloc[:idx], series.iloc[idx:]
     if before.empty or after.empty:
@@ -113,7 +113,7 @@ def detect_changepoints(
 
     for date in pelt_dates:
         match = next((c for c in remaining_cusum if abs(c - date) <= tolerance), None)
-        method = "both" if match else "pelt"
+        method: Literal["pelt", "cusum", "both"] = "both" if match else "pelt"
         if match:
             remaining_cusum.remove(match)
         magnitude, direction = _magnitude_and_direction(deseasonalized_series, date)

@@ -10,6 +10,7 @@ two UI surfaces that consume it can't drift out of sync with each other.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 import pandas as pd
@@ -141,10 +142,10 @@ def build_analyst_report(
     anomalies: list[Anomaly],
     forecast_result: ForecastResult | None,
     fuel: str = "total",
-    fuel_clean_dfs: dict[EnergyType, pd.DataFrame] | None = None,
-    fuel_stl_results: dict[EnergyType, STLResult | None] | None = None,
-    fuel_energy_results: dict[EnergyType, EnergySignatureResult | None] | None = None,
-    fuel_anomalies: dict[EnergyType, list[Anomaly]] | None = None,
+    fuel_clean_dfs: Mapping[EnergyType, pd.DataFrame] | None = None,
+    fuel_stl_results: Mapping[EnergyType, STLResult | None] | None = None,
+    fuel_energy_results: Mapping[EnergyType, EnergySignatureResult | None] | None = None,
+    fuel_anomalies: Mapping[EnergyType, list[Anomaly]] | None = None,
 ) -> AnalystReport:
     """Assemble the full deterministic report from already-computed analysis outputs.
 
@@ -268,7 +269,7 @@ def build_analyst_report(
         weather_shares=weather_shares,
     )
     savings_candidates = [r for r in recommendations if r.estimated_saving_gbp is not None]
-    largest_saving = max(savings_candidates, key=lambda r: r.estimated_saving_gbp) if savings_candidates else None
+    largest_saving = max(savings_candidates, key=lambda r: r.estimated_saving_gbp or 0.0) if savings_candidates else None
 
     overall_assessment = _overall_assessment(pct_change, data_quality_rating)
     summary_parts = [overall_assessment]

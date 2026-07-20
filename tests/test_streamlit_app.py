@@ -499,18 +499,14 @@ def _synthetic_daily_weather(start: str, end: str):
 def test_weather_on_renders_severe_weather_context_without_network(monkeypatch):
     """Turning the weather toggle on must exercise the full Weather Context Engine path,
     plus the month tab's weather-explained breakdown, with the fetch mocked out."""
-    import sys
-
-    sys.path.insert(0, str(APP_PATH.parent))
-    import tabs_phase2
-    import tabs_weather_context
+    from app import tabs_drivers, tabs_weather_context
 
     def _fake_fetch(lat, lon, start, end, timezone, cache_dir):
         return _synthetic_daily_weather(start, end)
 
-    monkeypatch.setattr(tabs_phase2, "fetch_daily_weather", _fake_fetch)
+    monkeypatch.setattr(tabs_drivers, "fetch_daily_weather", _fake_fetch)
     monkeypatch.setattr(tabs_weather_context, "fetch_daily_weather", _fake_fetch)
-    tabs_phase2.load_weather_analysis.clear()
+    tabs_drivers.load_weather_analysis.clear()
     tabs_weather_context.load_weather_context.clear()
 
     at = AppTest.from_file(str(APP_PATH))

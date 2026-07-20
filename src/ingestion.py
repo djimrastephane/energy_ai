@@ -31,7 +31,7 @@ _COST_COL = "Cost (£)"
 _CONSUMPTION_COL = "Consumption (kWh)"
 _REQUIRED_COLUMNS = (_MONTH_COL, _COST_COL, _CONSUMPTION_COL)
 
-FUEL_FILE_PATTERNS: dict[str, str] = {
+FUEL_FILE_PATTERNS: dict[EnergyType, str] = {
     "total": "*Total Use*.csv",
     "electricity": "*Electricity Use*.csv",
     "gas": "*Gas Use*.csv",
@@ -76,7 +76,7 @@ def _source_name(source: Path | _NamedBuffer) -> str:
     return name if name else "uploaded_file"
 
 
-def filter_sources_by_fuel(sources: list, fuel: str) -> list:
+def filter_sources_by_fuel(sources: list, fuel: EnergyType) -> list:
     """Filter an already-known list of sources (paths or uploaded files) down to one fuel.
 
     Works uniformly on filesystem ``Path``s and Streamlit ``UploadedFile``

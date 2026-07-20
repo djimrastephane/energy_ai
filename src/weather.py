@@ -176,7 +176,7 @@ def validate_daily_weather(df: pd.DataFrame) -> list[str]:
 
 
 def _request_daily_weather(lat: float, lon: float, start: str, end: str, tz: str) -> pd.DataFrame:
-    params = {
+    params: dict[str, str | float] = {
         "latitude": lat,
         "longitude": lon,
         "start_date": start,

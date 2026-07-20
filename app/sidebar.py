@@ -12,10 +12,16 @@ import streamlit as st
 from config import SETTINGS, BillingConfig
 from src.forecast_evaluation import MODEL_REGISTRY
 from src.fuel import cross_check_fuel_totals
-from src.ingestion import FUEL_FILE_PATTERNS, discover_csv_files, filter_sources_by_fuel, load_all
+from src.ingestion import (
+    FUEL_FILE_PATTERNS,
+    EnergyType,
+    discover_csv_files,
+    filter_sources_by_fuel,
+    load_all,
+)
 from src.preprocessing import PreprocessingReport, run_pipeline
 
-_FUEL_DISPLAY = {
+_FUEL_DISPLAY: dict[EnergyType, str] = {
     "total": "Total (Electricity + Gas)",
     "electricity": "Electricity only",
     "gas": "Gas only",
@@ -34,7 +40,9 @@ def _load_uploaded_data(uploaded_files) -> tuple[pd.DataFrame, PreprocessingRepo
     return run_pipeline(raw)
 
 
-def _load_all_fuels(uploaded) -> tuple[dict[str, pd.DataFrame], dict[str, PreprocessingReport]]:
+def _load_all_fuels(
+    uploaded,
+) -> tuple[dict[EnergyType, pd.DataFrame], dict[EnergyType, PreprocessingReport]]:
     """Load Total/Electricity/Gas independently (each cached separately by pattern).
 
     A fuel with zero matching files/uploads yields an empty ``clean`` frame
@@ -42,8 +50,8 @@ def _load_all_fuels(uploaded) -> tuple[dict[str, pd.DataFrame], dict[str, Prepro
     simply excluded from the sidebar's fuel choices below rather than
     special-cased here.
     """
-    frames: dict[str, pd.DataFrame] = {}
-    reports: dict[str, PreprocessingReport] = {}
+    frames: dict[EnergyType, pd.DataFrame] = {}
+    reports: dict[EnergyType, PreprocessingReport] = {}
     for fuel, pattern in FUEL_FILE_PATTERNS.items():
         if uploaded:
             frames[fuel], reports[fuel] = _load_uploaded_data(filter_sources_by_fuel(uploaded, fuel))
@@ -59,9 +67,9 @@ def render_sidebar() -> tuple[
     bool,
     int,
     str,
+    EnergyType,
     str,
-    str,
-    dict[str, pd.DataFrame],
+    dict[EnergyType, pd.DataFrame],
     list[str] | None,
     BillingConfig,
 ]:

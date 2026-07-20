@@ -1,8 +1,7 @@
 """Task 6 -- cross-fuel anomaly attribution.
 
 Split out of ``src.comparisons`` to stay under the ~300-line guideline (same
-reactive-split pattern used for ``charts.py`` -> ``charts_phase3.py`` in
-Phase 3). Cross-references each fuel's independently-run anomaly detection
+reactive-split pattern used for ``charts.py`` -> ``charts_forecast.py``). Cross-references each fuel's independently-run anomaly detection
 (``src.anomalies.detect_anomalies``, called once per fuel elsewhere) to say
 *which* fuel is responsible for a flagged month, not just that something
 unusual happened. No new anomaly-detection logic here -- this only
@@ -62,7 +61,7 @@ def _residual_evidence(
     )
 
 
-def _fuel_index(fuel_clean_dfs: dict[EnergyType, pd.DataFrame], fuel: str) -> pd.DataFrame:
+def _fuel_index(fuel_clean_dfs: dict[EnergyType, pd.DataFrame], fuel: EnergyType) -> pd.DataFrame:
     df = fuel_clean_dfs.get(fuel, pd.DataFrame())
     return df.set_index("month_start") if not df.empty else df
 

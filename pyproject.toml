@@ -1,3 +1,50 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "energy-ai"
+version = "1.0.0"
+description = "AI Home Energy Intelligence Platform: an evidence-based energy analyst for OVO monthly billing exports"
+requires-python = ">=3.12"
+dependencies = [
+    # Ingestion, statistics, UI
+    "pandas>=2.2",
+    "numpy>=1.26",
+    "scipy>=1.13",
+    "streamlit>=1.38",
+    "plotly>=5.22",
+    # STL decomposition, weather adjustment, change-point detection
+    "statsmodels>=0.14",
+    "requests>=2.32",
+    "ruptures>=1.1",
+    # Forecasting suite + anomaly detection
+    "scikit-learn>=1.4",
+    "xgboost>=2.0",
+    "lightgbm>=4.0",
+    "prophet>=1.1",
+    # Household Energy Review (HTML report)
+    "jinja2>=3.1",
+    "markupsafe>=2.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2",
+    "pytest-cov>=5.0",
+    "ruff>=0.6",
+    "mypy>=1.10",
+]
+
+# The project installs as three top-level import roots -- ``src`` (pure
+# calculation layer), ``app`` (Streamlit rendering layer), and the ``config``
+# module -- matching the import paths used throughout. Intended for editable
+# installs from a checkout (`pip install -e .`): data/, docs/, and the raw
+# exports live in the repository, not inside the package.
+[tool.setuptools]
+packages = ["src", "app"]
+py-modules = ["config"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"
@@ -6,5 +53,20 @@ target-version = "py312"
 select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
 ignore = ["E501"]
 
+[tool.ruff.lint.isort]
+known-first-party = ["src", "app", "config"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.mypy]
+files = ["src", "app", "config.py", "scripts"]
+python_version = "3.12"
+# Pragmatic profile: the scientific stack (pandas, plotly, statsmodels,
+# sklearn, ...) ships no stubs, so library returns are Any; the checker
+# still validates this project's own annotations against each other.
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true

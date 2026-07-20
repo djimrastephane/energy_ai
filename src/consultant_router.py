@@ -1,6 +1,6 @@
 """Question routing for the AI Energy Consultant -- split out of ``src.consultant`` to stay
 under the ~300-line guideline (same reactive-split pattern used elsewhere in this project, e.g.
-``charts.py`` -> ``charts_phase3.py``, ``comparisons.py`` -> ``cross_fuel_anomalies.py``).
+``charts.py`` -> ``charts_forecast.py``, ``comparisons.py`` -> ``cross_fuel_anomalies.py``).
 
 ``QUESTIONS`` is the single source of truth for both the clickable question list (the app UI
 iterates it directly) and ``route_question``'s keyword matching, so they can never drift apart.

@@ -1,8 +1,8 @@
-"""Phase 3 chart builders: forecasting and anomaly detection.
+"""Forecasting chart builders.
 
 Split from ``charts.py`` to keep that module under the project's preferred
 ~300-line-per-file guideline, same pattern as ``tabs_core.py``/
-``tabs_phase2.py``/``tabs_phase3.py``. Shares the same palette/layout
+``tabs_drivers.py``/``tabs_forecast.py``. Shares the same palette/layout
 conventions as ``charts.py``.
 """
 
@@ -10,9 +10,8 @@ from __future__ import annotations
 
 import pandas as pd
 import plotly.graph_objects as go
-from charts import PALETTE, base_layout
 
-from src.anomalies import Anomaly
+from app.charts import PALETTE, base_layout
 from src.forecast_evaluation import ForecastResult
 
 
@@ -106,61 +105,3 @@ def model_comparison_bar(comparison_df: pd.DataFrame, chosen_model: str) -> go.F
         )
     )
     return base_layout(fig, "Model Comparison (Cross-Validated MAE, Lower = Better)", "MAE (kWh)")
-
-
-def anomaly_scatter(series: pd.Series, anomalies: list[Anomaly]) -> go.Figure:
-    """Monthly consumption with flagged anomalies marked, styled by how many methods agree."""
-    fig = go.Figure(
-        go.Scatter(
-            x=series.index,
-            y=series.to_numpy(),
-            mode="lines+markers",
-            name="Consumption",
-            line={"width": 2, "color": PALETTE[0]},
-            marker={"size": 6},
-            hovertemplate="%{x|%b %Y}<br>%{y:,.0f} kWh<extra></extra>",
-        )
-    )
-
-    by_date = {a.date: a for a in anomalies}
-    tiers = {"high": {"x": [], "y": [], "text": []}, "low": {"x": [], "y": [], "text": []}}
-    for date, value in series.items():
-        anomaly = by_date.get(date)
-        if anomaly is None:
-            continue
-        tier = "high" if len(anomaly.methods) >= 2 else "low"
-        tiers[tier]["x"].append(date)
-        tiers[tier]["y"].append(value)
-        tiers[tier]["text"].append(f"{', '.join(anomaly.methods)}<br>{anomaly.rank_context}")
-
-    if tiers["low"]["x"]:
-        fig.add_trace(
-            go.Scatter(
-                x=tiers["low"]["x"],
-                y=tiers["low"]["y"],
-                mode="markers",
-                name="Flagged (1 method)",
-                marker={"size": 12, "color": PALETTE[3], "symbol": "circle-open", "line": {"width": 2}},
-                hovertext=tiers["low"]["text"],
-                hovertemplate="%{x|%b %Y}: %{y:,.0f} kWh<br>%{hovertext}<extra></extra>",
-            )
-        )
-    if tiers["high"]["x"]:
-        fig.add_trace(
-            go.Scatter(
-                x=tiers["high"]["x"],
-                y=tiers["high"]["y"],
-                mode="markers",
-                name="Flagged (2+ methods)",
-                marker={
-                    "size": 14,
-                    "color": PALETTE[2],
-                    "symbol": "diamond",
-                    "line": {"width": 2, "color": "#ffffff"},
-                },
-                hovertext=tiers["high"]["text"],
-                hovertemplate="%{x|%b %Y}: %{y:,.0f} kWh<br>%{hovertext}<extra></extra>",
-            )
-        )
-
-    return base_layout(fig, "Consumption with Flagged Anomalies", "kWh")
