@@ -37,7 +37,11 @@ from src.energy_signature import fit_energy_signature
 from src.fuel import cross_check_fuel_totals
 from src.ingestion import load_all
 from src.preprocessing import run_pipeline
-from src.weather import compute_monthly_degree_days, fetch_daily_weather, merge_weather_with_consumption
+from src.weather import (
+    compute_monthly_degree_days,
+    fetch_daily_weather,
+    merge_weather_with_consumption,
+)
 
 SEED = 42
 START = pd.Timestamp("2021-07-01")
@@ -152,7 +156,7 @@ def validate(df: pd.DataFrame) -> None:
         print(f"  {fuel:<12} {report.n_months} months, {status}: {report.outlier_warnings or report.conflicts or report.missing_months}")
 
     warnings = cross_check_fuel_totals(fuel_clean["total"], fuel_clean["electricity"], fuel_clean["gas"])
-    print(f"  cross-fuel check: {'OK' if not warnings else warnings}")
+    print(f"  cross-fuel check: {warnings if warnings else 'OK'}")
 
     w = SETTINGS.weather
     daily = fetch_daily_weather(w.latitude, w.longitude, START, END + pd.offsets.MonthEnd(1), w.timezone, SETTINGS.weather_cache_dir)
