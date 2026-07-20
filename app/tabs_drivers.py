@@ -17,6 +17,7 @@ import streamlit as st
 
 from app.charts import changepoint_timeline, energy_signature_scatter, stl_components_figure
 from app.charts_seasonal import seasonal_calendar_profile_figure, seasonal_overview_figure
+from app.sidebar import WEATHER_ENABLED_KEY
 from app.tabs_weather_context import render_weather_impact_summary
 from config import SETTINGS, WeatherConfig
 from src.anomalies import Anomaly
@@ -111,7 +112,7 @@ def render_seasonality(
     st.markdown(f"##### {summary.main_conclusion}")
     st.write(summary.why_it_matters)
     icon = _CONFIDENCE_ICON[summary.confidence]
-    st.caption(f"Confidence: {icon} {summary.confidence} -- {summary.confidence_reason}")
+    st.caption(f"Confidence: {icon} {summary.confidence} -- {summary.confidence_reason}")
     if summary.unusual_month is not None:
         st.info(summary.unusual_month_context)
 
@@ -146,6 +147,12 @@ def render_seasonality(
             "Largest unexplained deviation",
             summary.unusual_month.date.strftime("%b %Y"),
             f"{summary.unusual_month_kwh:+,.0f} kWh",
+            # A positive deviation (used MORE than expected) isn't "good" just because the
+            # number is positive -- this app's own principle elsewhere is that an increase is
+            # never automatically colored red or green (UX audit finding: this metric was the
+            # one place that principle wasn't applied, so Streamlit's default delta coloring
+            # would paint an unexplained overshoot green).
+            delta_color="off",
             help=summary.unusual_month_context,
         )
     else:
@@ -168,6 +175,18 @@ def render_seasonality(
             st.write(f"- **{term}:** {definition}")
 
 
+def _enable_weather_adjustment() -> None:
+    """``on_click`` callback for the Weather Impact tab's inline enable button.
+
+    Runs before the rerun that follows any button click -- the only point the toggle's own
+    session-state key can be reassigned, since the toggle widget already rendered earlier in
+    this run (in ``render_sidebar()``) and Streamlit forbids reassigning a widget's key after
+    it has rendered in the same run. Same constraint, same pattern, as the weather-location
+    "Confirm" button in ``app/sidebar.py``.
+    """
+    st.session_state[WEATHER_ENABLED_KEY] = True
+
+
 def render_weather_adjustment(
     weather_enabled: bool,
     merged: pd.DataFrame | None,
@@ -181,8 +200,15 @@ def render_weather_adjustment(
     st.caption(f"Location: {location_label}. Uses full history regardless of the year filter.")
     if not weather_enabled:
         st.info(
-            "Turn on 'Weather adjustment' in the sidebar to fetch historical temperature and see "
-            "the weather-adjusted energy signature (requires internet access to Open-Meteo)."
+            f"See how much of your usage weather explains for {location_label} -- this is usually "
+            "the single most persuasive analysis in the app, and it's off by default."
+        )
+        # An inline, one-click enable -- not just a passive pointer back to the sidebar (UX audit
+        # finding: the app's most persuasive finding was opt-in with no in-page call to action).
+        st.button("Turn on weather adjustment", on_click=_enable_weather_adjustment)
+        st.caption(
+            "Requires internet access to Open-Meteo (free, no key). You can turn it off again "
+            "anytime in the sidebar."
         )
         return
     if weather_error or merged is None or result is None:

@@ -62,21 +62,22 @@ def rate_weather_model(result: EnergySignatureResult | None) -> ConfidenceRating
     if result.r_squared < 0.3 or not has_driver:
         return ConfidenceRating(
             "Low",
-            f"R-squared is only {result.r_squared:.0%} and/or no weather driver reached "
-            "statistical significance -- weather doesn't reliably explain consumption here.",
+            f"Weather explains only a small part of the swing in your usage (about "
+            f"{result.r_squared:.0%}), and/or no clear weather effect could be pinned down here.",
         )
     if result.r_squared < 0.6 or not dw_in_range:
         reason = (
-            f"R-squared is a moderate {result.r_squared:.0%}."
+            f"Weather explains a moderate share of your usage (about {result.r_squared:.0%}) -- "
+            "not enough to be highly confident."
             if result.r_squared < 0.6
-            else f"Durbin-Watson ({result.durbin_watson:.2f}) suggests nearby months' residuals "
-            "are correlated, so significance should be read with some caution."
+            else "There's a leftover month-to-month pattern the model doesn't fully capture, so "
+            "treat this with a little more caution."
         )
         return ConfidenceRating("Medium", reason)
     return ConfidenceRating(
         "High",
-        f"R-squared of {result.r_squared:.0%} with a statistically significant weather driver "
-        f"and no strong residual autocorrelation (Durbin-Watson {result.durbin_watson:.2f}).",
+        f"The model explains most of the month-to-month swing in your usage (about "
+        f"{result.r_squared:.0%}), with a clear weather effect and no leftover pattern it's missing.",
     )
 
 
@@ -93,18 +94,20 @@ def rate_forecast(result: ForecastResult | None, history_mean: float) -> Confide
     if relative_mae > 0.30 or band_width_ratio > 1.2 or best["n_folds"] < 6:
         return ConfidenceRating(
             "Low",
-            f"Cross-validated error is large relative to typical consumption "
-            f"({relative_mae:.0%}) and/or based on few validation folds ({int(best['n_folds'])}).",
+            f"This model's typical error is large next to a normal month's usage (about "
+            f"{relative_mae:.0%}), and/or it's only been checked against a few past months "
+            f"({int(best['n_folds'])}) -- treat it as a rough guide.",
         )
     if relative_mae > 0.15 or band_width_ratio > 0.7:
         return ConfidenceRating(
             "Medium",
-            f"Cross-validated error is moderate ({relative_mae:.0%} of typical monthly consumption).",
+            f"This model's typical error is moderate -- about {relative_mae:.0%} of a normal "
+            "month's usage.",
         )
     return ConfidenceRating(
         "High",
-        f"Cross-validated error is small ({relative_mae:.0%} of typical monthly consumption) "
-        f"across {int(best['n_folds'])} validation folds.",
+        f"This model has been accurate in past tests -- typical error of about {relative_mae:.0%} "
+        f"of a normal month's usage, checked against {int(best['n_folds'])} past months.",
     )
 
 

@@ -23,18 +23,24 @@ Intelligence, and Carbon pages all need the exact same objects -- computing
 them twice per fuel would let the surfaces silently drift out of sync.
 
 Navigation is organized around user questions (Home / How did this month
-compare? / What drives my usage? / ...), with the month-comparison journey
-(``tabs_month.py``, backed by ``src.monthly_comparison``) as the primary
-surface: latest complete month vs. the same calendar month last year.
-Whole-period and method-level views remain available under Long-term trends
-and Data and methods. Sidebar controls live in ``app/sidebar.py``; tab
-rendering logic lives in the ``tabs_*`` modules, named for what they render
-(``tabs_core.py`` for data quality/statistics/consumption, ``tabs_drivers.py``
-for seasons/weather/usage shifts, ``tabs_forecast.py``/``tabs_anomalies.py``,
-``tabs_briefing.py``/``tabs_analyst.py`` for decision support, ``tabs_fuel.py``/
+compare? / Ask the Energy Consultant / Why did this happen? / ...), with the
+month-comparison journey (``tabs_month.py``, backed by
+``src.monthly_comparison``) as the primary surface: latest complete month
+vs. the same calendar month last year. The Consultant sits early in the tab
+order (not last) since it's the app's primary differentiator, not a footnote.
+"Why did this happen?" and "Advanced" are each a single top-level tab that
+groups several previously-separate tabs' worth of sub-tabs -- consolidating
+six double-decker (tab-of-tabs) destinations down to three, and keeping the
+top-level bar short enough not to overflow a standard laptop width. Sidebar
+controls live in ``app/sidebar.py``; tab rendering logic lives in the
+``tabs_*`` modules, named for what they render (``tabs_core.py`` for data
+quality/statistics/consumption, ``tabs_drivers.py`` for seasons/weather/usage
+shifts, ``tabs_forecast.py``/``tabs_anomalies.py``, ``tabs_briefing.py``/
+``tabs_analyst.py`` for decision support, ``tabs_fuel.py``/
 ``tabs_comparisons.py``/``tabs_cost.py``/``tabs_carbon.py`` for multi-fuel and
 costs, and ``tabs_month.py`` for the month comparison) -- this module is just
-top-level orchestration.
+top-level orchestration, regrouping those renderers under fewer top-level
+tabs without changing what any of them render.
 """
 
 from __future__ import annotations
@@ -76,7 +82,14 @@ from src.changepoints import detect_changepoints
 from src.consultant import ConsultantContext
 from src.weather import WeatherFetchError
 
-st.set_page_config(page_title="AI Home Energy Intelligence Platform", layout="wide")
+st.set_page_config(
+    page_title="AI Home Energy Intelligence Platform",
+    layout="wide",
+    # Collapsed by default (audit finding: on narrow/mobile viewports the sidebar rendered
+    # open and overlapped the main content on first load; collapsed-by-default also keeps
+    # the data-upload controls from dominating the very first screen on desktop).
+    initial_sidebar_state="collapsed",
+)
 
 
 def main() -> None:
@@ -255,30 +268,32 @@ def main() -> None:
             "print-quality PDF version."
         )
 
-    # Navigation is organized around the questions a homeowner actually asks; the
-    # whole-period and method-level surfaces all remain, one level down (Long-term
-    # trends / Data and methods) -- demoted, never deleted.
+    # Navigation is organized around the questions a homeowner actually asks. The
+    # Consultant sits early (position 3), not last, since it's the app's primary
+    # differentiator. "Why did this happen?" and "Advanced" each group several
+    # previously-separate top-level tabs' worth of sub-tabs into one destination --
+    # consolidating six double-decker (tab-of-tabs) tabs down to three, and keeping
+    # the top-level bar short enough not to overflow a standard laptop width (UX
+    # audit findings: tab-bar overflow at 1440px, double-decker navigation).
+    # Every render_* call below is unchanged from before this regrouping -- only
+    # which top-level tab each one is nested under has moved.
     (
         tab_home,
         tab_month,
-        tab_drivers,
-        tab_costs_carbon,
-        tab_unusual,
-        tab_forecast,
         tab_consultant,
-        tab_long_term,
-        tab_methods,
+        tab_why,
+        tab_costs_carbon,
+        tab_forecast,
+        tab_advanced,
     ) = st.tabs(
         [
             "Home",
             "How did this month compare?",
-            "What drives my usage?",
-            "Costs and carbon",
-            "Did anything unusual happen?",
-            "What should I expect next?",
             "Ask the Energy Consultant",
-            "Long-term trends",
-            "Data and methods",
+            "Why did this happen?",
+            "Costs and carbon",
+            "What should I expect next?",
+            "Advanced",
         ]
     )
     with tab_home:
@@ -287,9 +302,13 @@ def main() -> None:
         )
     with tab_month:
         render_month_comparison(month_ctx, fuel_frames, fuel_anomalies_all)
-    with tab_drivers:
-        sub_fuel, sub_seasons, sub_weather = st.tabs(
-            ["Fuel breakdown", "Seasons", "Weather impact"]
+    with tab_consultant:
+        render_consultant(consultant_ctx)
+    with tab_why:
+        # Merges the former "What drives my usage?" and "Did anything unusual happen?"
+        # top-level tabs -- same five renderers, same sub-tab labels, one parent tab.
+        sub_fuel, sub_seasons, sub_weather, sub_anomalies, sub_shifts = st.tabs(
+            ["Fuel breakdown", "Seasons", "Weather impact", "Unusual months", "Usage shifts"]
         )
         with sub_fuel:
             render_fuel_breakdown(
@@ -301,14 +320,6 @@ def main() -> None:
             render_weather_adjustment(
                 weather_enabled, merged, energy_result, weather_error, fuel, weather_context_df, weather_config
             )
-    with tab_costs_carbon:
-        sub_cost, sub_carbon = st.tabs(["Costs", "Carbon"])
-        with sub_cost:
-            render_cost_intelligence(fuel_frames, weather_enabled, billing_config)
-        with sub_carbon:
-            render_carbon(fuel_frames, fuel_merged, fuel_energy_results, weather_enabled)
-    with tab_unusual:
-        sub_anomalies, sub_shifts = st.tabs(["Unusual months", "Usage shifts"])
         with sub_anomalies:
             render_anomalies(
                 clean,
@@ -324,13 +335,27 @@ def main() -> None:
             render_change_points(
                 stl_result, stl_error, changepoints, clean, merged, energy_result, fuel
             )
+    with tab_costs_carbon:
+        sub_cost, sub_carbon = st.tabs(["Costs", "Carbon"])
+        with sub_cost:
+            render_cost_intelligence(fuel_frames, weather_enabled, billing_config)
+        with sub_carbon:
+            render_carbon(fuel_frames, fuel_merged, fuel_energy_results, weather_enabled)
     with tab_forecast:
         render_forecasting(clean, horizon, model_choice, fuel, billing_config)
-    with tab_consultant:
-        render_consultant(consultant_ctx)
-    with tab_long_term:
-        sub_consumption, sub_comparisons = st.tabs(
-            ["Consumption over time", "Fuel comparisons (all years)"]
+    with tab_advanced:
+        # Merges the former "Long-term trends" and "Data and methods" top-level tabs --
+        # same five renderers, same sub-tab labels, one parent tab. Named unlike the
+        # other (question-phrased) tabs on purpose: this is the methodology/whole-period
+        # bucket, demoted deliberately rather than competing as an equal-weight tab.
+        sub_consumption, sub_comparisons, sub_analyst, sub_stats, sub_quality = st.tabs(
+            [
+                "Consumption over time",
+                "Fuel comparisons (all years)",
+                "Full report (AI Analyst)",
+                "Statistical analysis",
+                "Data quality",
+            ]
         )
         with sub_consumption:
             render_consumption_analysis(period_df)
@@ -344,10 +369,6 @@ def main() -> None:
                 weather_enabled,
                 multi_fuel_forecasts,
             )
-    with tab_methods:
-        sub_analyst, sub_stats, sub_quality = st.tabs(
-            ["Full report (AI Analyst)", "Statistical analysis", "Data quality"]
-        )
         with sub_analyst:
             render_ai_analyst(clean, merged, energy_result, anomalies, analyst_report)
         with sub_stats:

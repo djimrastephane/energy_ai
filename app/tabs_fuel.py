@@ -50,9 +50,33 @@ def render_fuel_breakdown(
     else:
         st.success("Electricity + Gas matches Total for every overlapping month.")
 
+    # Each chart gets its own one-line takeaway rather than stacking three charts behind a
+    # single shared paragraph (UX audit finding: this was the app's clearest "collection of
+    # charts" moment). Every sentence below is simple arithmetic on ``combined`` -- counts,
+    # min/max -- not a new statistic.
     st.plotly_chart(fuel_comparison_bar(combined), width="stretch")
+    gas_higher_months = int((combined["gas_kwh"] > combined["electricity_kwh"]).sum())
+    elec_higher_months = int((combined["electricity_kwh"] > combined["gas_kwh"]).sum())
+    higher_fuel, higher_months = (
+        ("Gas", gas_higher_months) if gas_higher_months >= elec_higher_months else ("Electricity", elec_higher_months)
+    )
+    st.caption(f"{higher_fuel} used more energy than the other fuel in {higher_months} of the last {len(combined)} months.")
+
     st.plotly_chart(fuel_share_area(combined), width="stretch")
+    min_share = combined["electricity_share_pct"].min()
+    max_share = combined["electricity_share_pct"].max()
+    st.caption(
+        f"Electricity's share of combined energy ranges from about {min_share:.0f}% to "
+        f"{max_share:.0f}% depending on the month -- the wider that range, the more one fuel "
+        "swings with the seasons."
+    )
+
     st.plotly_chart(fuel_mix_annual_stacked_bar(combined), width="stretch")
+    st.caption(
+        "Each bar splits that year's total energy between electricity (bottom) and gas (top) -- "
+        "bar height shows whether total usage is rising or falling year to year; the split within "
+        "each bar shows whether the fuel mix is shifting."
+    )
 
     st.divider()
     st.subheader("Fuel mix")

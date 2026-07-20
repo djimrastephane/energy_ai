@@ -19,7 +19,7 @@ def _render_answer(answer: ConsultantAnswer) -> None:
     st.write(answer.answer)
     if answer.confidence:
         icon = _CONFIDENCE_ICON[answer.confidence]
-        st.caption(f"Confidence: {icon} {answer.confidence}")
+        st.caption(f"Confidence: {icon} {answer.confidence}")
     if answer.evidence:
         with st.expander("Evidence"):
             for e in answer.evidence:
@@ -50,24 +50,36 @@ def render_consultant(ctx: ConsultantContext) -> None:
 
     question_text = st.text_input("Ask a question", placeholder="e.g. Why did my bill go up?")
 
-    if question_text:
-        matched = route_question(question_text, ctx)
-        if matched:
-            _render_answer(matched)
-            return
-        st.info("I couldn't confidently match that to one of the questions I can answer -- try one below:")
+    # Reserve the answer's position immediately under the input -- filled in below, after the
+    # button grid is processed, so a clicked question's answer always appears right where the
+    # user is already looking rather than below all the buttons (UX audit finding: the answer
+    # rendered off-screen, below a 17-button list, with no visible confirmation the click landed).
+    answer_slot = st.container()
 
     st.write("**Questions I can answer:**")
-    for question, _handler in QUESTIONS:
-        if st.button(question, key=f"consultant_q_{question}"):
-            st.session_state["consultant_selected_question"] = question
+    # A 3-column grid instead of one long ragged-width column -- the same list used roughly
+    # two-thirds of the desktop page as empty space next to it (UX audit finding).
+    cols = st.columns(3)
+    for i, (question, _handler) in enumerate(QUESTIONS):
+        with cols[i % 3]:
+            if st.button(question, key=f"consultant_q_{question}", width="stretch"):
+                st.session_state["consultant_selected_question"] = question
 
     # Store the *question* and recompute the answer every rerun (handlers are sub-millisecond,
     # measured) -- storing the computed answer froze it against the context it was built from,
     # so switching fuel or toggling weather kept showing the old fuel's answer (audit finding F2).
     selected_question = st.session_state.get("consultant_selected_question")
-    if selected_question and not question_text:
-        handler = dict(QUESTIONS).get(selected_question)
-        if handler:
-            st.divider()
-            _render_answer(handler(ctx))
+    with answer_slot:
+        if question_text:
+            matched = route_question(question_text, ctx)
+            if matched:
+                _render_answer(matched)
+            else:
+                st.info(
+                    "I couldn't confidently match that to one of the questions I can answer -- "
+                    "try one below:"
+                )
+        elif selected_question:
+            handler = dict(QUESTIONS).get(selected_question)
+            if handler:
+                _render_answer(handler(ctx))

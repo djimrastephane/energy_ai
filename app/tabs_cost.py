@@ -11,11 +11,13 @@ import pandas as pd
 import streamlit as st
 
 from app.tabs_forecast import generate_multi_fuel_forecast_cached
+from app.tabs_month import FUEL_DISPLAY_LABELS
 from config import SETTINGS, BillingConfig
 from src.benchmarking import compare_to_benchmark
 from src.billing import bill_breakdown_frame
 from src.cost_engine import compute_combined_cost_breakdown, forecast_bill_by_fuel
 from src.ingestion import EnergyType
+from src.utils import format_gbp
 
 _BILL_FUEL_LABELS: dict[EnergyType, str] = {
     "total": "Combined (both standing charges)",
@@ -50,6 +52,19 @@ def _render_bill_breakdown(
         key="bill_breakdown_fuel",
     )
     frame = bill_breakdown_frame(fuel_clean_dfs[fuel], fuel, billing_config)
+
+    # Lead with the most recent bill -- the rest of the app answers first and tucks full detail
+    # into an expander (e.g. "Technical details", "View annual table"); this table was the one
+    # place a long raw grid (potentially 30+ rows) was the very first thing shown, with nothing
+    # answering "what's my latest bill" without scanning it (UX audit finding: dense tables read
+    # as debug output next to the app's well-designed metric cards).
+    latest = frame.iloc[-1]
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Latest bill", f"{latest['month_start']:%B %Y}")
+    c2.metric("Consumption", format_gbp(latest["consumption_cost_gbp"]))
+    c3.metric("Standing + VAT", format_gbp(latest["standing_charge_gbp"] + latest["vat_gbp"]))
+    c4.metric("Total bill", format_gbp(latest["total_bill_gbp"]))
+
     display = frame.assign(month=frame["month_start"].dt.strftime("%b %Y")).rename(
         columns={
             "month": "Month",
@@ -63,7 +78,8 @@ def _render_bill_breakdown(
         ["Month", "Billing period", "Consumption (£)", "Standing (£)",
          f"VAT {billing_config.vat_rate:.0%} (£)", "Total bill (£)"]
     ].round(2)
-    st.dataframe(display.iloc[::-1], hide_index=True, width="stretch")
+    with st.expander(f"Full bill history ({len(display)} months)"):
+        st.dataframe(display.iloc[::-1], hide_index=True, width="stretch")
 
 
 def render_cost_intelligence(
@@ -82,7 +98,7 @@ def render_cost_intelligence(
         st.info("No cost data available yet.")
         return
 
-    display = breakdown.rename(
+    display = breakdown.assign(fuel=breakdown["fuel"].map(FUEL_DISPLAY_LABELS)).rename(
         columns={
             "fuel": "Fuel",
             "annual_total_gbp": "Annual total (£)",

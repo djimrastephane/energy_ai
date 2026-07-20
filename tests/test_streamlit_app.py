@@ -16,13 +16,11 @@ APP_PATH = Path(__file__).resolve().parent.parent / "app" / "streamlit_app.py"
 TOP_LEVEL_TABS = [
     "Home",
     "How did this month compare?",
-    "What drives my usage?",
-    "Costs and carbon",
-    "Did anything unusual happen?",
-    "What should I expect next?",
     "Ask the Energy Consultant",
-    "Long-term trends",
-    "Data and methods",
+    "Why did this happen?",
+    "Costs and carbon",
+    "What should I expect next?",
+    "Advanced",
 ]
 
 N_CONSULTANT_QUESTIONS = 17
@@ -59,12 +57,14 @@ def test_app_renders_without_exceptions():
         assert demoted in labels
     assert len(at.get("metric")) > 0
 
-    # Home: leads with the month comparison, then the evidence-based briefing.
+    # Home: leads with the month comparison, then the trimmed briefing (biggest finding,
+    # largest saving, one forecast figure) -- overall assessment/household profile/confidence
+    # grid were removed as duplicates of the Full Report, not moved to a new location here.
     home = _tab(at, "Home")
     home_subheaders = [s.value.lower() for s in home.get("subheader")]
     assert home_subheaders[0] == "this month compared with last year"
-    assert "overall assessment" in home_subheaders
     assert "biggest finding" in home_subheaders
+    assert "overall assessment" not in home_subheaders
     assert list(home.exception) == []
 
     # Consultant: renders the question list and states which fuel/month it answers for.
@@ -75,7 +75,7 @@ def test_app_renders_without_exceptions():
     assert any("answering for" in c.value.lower() for c in consultant.get("caption"))
     assert any("month questions answer for" in c.value.lower() for c in consultant.get("caption"))
 
-    # Full report (AI Analyst): every section present, one level down under Data and methods.
+    # Full report (AI Analyst): every section present, one level down under Advanced.
     analyst = _tab(at, "Full report (AI Analyst)")
     assert list(analyst.exception) == []
     analyst_headers = " ".join(md.value.lower() for md in analyst.get("header"))
@@ -98,7 +98,7 @@ def test_app_renders_without_exceptions():
     assert any("matches total" in s.value.lower() for s in fuel_tab.get("success"))
     assert any("fuel mix" in s.value.lower() for s in fuel_tab.get("subheader"))
 
-    # Whole-period comparisons: retained under Long-term trends; weather prompt inert.
+    # Whole-period comparisons: retained under Advanced; weather prompt inert.
     comparisons = _tab(at, "Fuel comparisons (all years)")
     assert list(comparisons.exception) == []
     assert any("turn on" in info.value.lower() for info in comparisons.get("info"))
@@ -127,9 +127,9 @@ def test_app_renders_without_exceptions():
     assert "winter and summer cycle" in " ".join(md.value.lower() for md in seasons.get("markdown"))
     assert any("advanced statistical decomposition" in e.label.lower() for e in seasons.get("expander"))
 
-    # Weather impact: toggle defaults off -> inert prompt, no fetch.
+    # Weather impact: toggle defaults off -> inert prompt with an inline enable button, no fetch.
     weather = _tab(at, "Weather impact")
-    assert any("turn on" in info.value.lower() for info in weather.get("info"))
+    assert any("turn on weather adjustment" in b.label.lower() for b in weather.get("button"))
 
     # Usage shifts and Unusual months render whatever they find, without error.
     assert list(_tab(at, "Usage shifts").exception) == []
@@ -548,6 +548,38 @@ def test_weather_on_renders_severe_weather_context_without_network(monkeypatch):
     assert "kwh change" in answer_text or "matches what the temperature model expected" in answer_text
 
 
+def test_weather_impact_inline_button_enables_weather_adjustment(monkeypatch):
+    """The Weather Impact tab's own 'Turn on weather adjustment' button (UX audit finding: the
+    app's most persuasive analysis was opt-in with no in-page way to enable it) must actually
+    flip the sidebar toggle, not just be decorative."""
+    from app import tabs_drivers, tabs_weather_context
+
+    def _fake_fetch(lat, lon, start, end, timezone, cache_dir):
+        return _synthetic_daily_weather(start, end)
+
+    monkeypatch.setattr(tabs_drivers, "fetch_daily_weather", _fake_fetch)
+    monkeypatch.setattr(tabs_weather_context, "fetch_daily_weather", _fake_fetch)
+    tabs_drivers.load_weather_analysis.clear()
+    tabs_weather_context.load_weather_context.clear()
+
+    at = AppTest.from_file(str(APP_PATH))
+    at.run(timeout=60)
+
+    toggle = next(t for t in at.sidebar.toggle if t.label == "Weather adjustment")
+    assert toggle.value is False
+
+    weather = _tab(at, "Weather impact")
+    button = next(b for b in weather.get("button") if "turn on weather adjustment" in b.label.lower())
+    button.click().run(timeout=120)
+
+    assert list(at.exception) == []
+    toggle = next(t for t in at.sidebar.toggle if t.label == "Weather adjustment")
+    assert toggle.value is True
+    weather = _tab(at, "Weather impact")
+    assert list(weather.exception) == []
+    assert any("severe weather in your history" in s.value.lower() for s in weather.get("subheader"))
+
+
 def test_weather_location_search_requires_explicit_confirmation(monkeypatch):
     """Typing a new location must not change what weather adjustment uses until a specific
     candidate is confirmed -- ambiguous names (multiple real Manchesters) are exactly why."""
@@ -609,3 +641,36 @@ def test_weather_location_search_requires_explicit_confirmation(monkeypatch):
     assert list(weather_tab.exception) == []
     weather_caption = " ".join(c.value for c in weather_tab.get("caption"))
     assert "Location: Manchester, New Hampshire, United States" in weather_caption
+
+
+def test_no_data_offers_demo_button_and_loads_synthetic_dataset(tmp_path, monkeypatch):
+    """UX audit finding: a first-time visitor with no CSV in hand and an empty data/raw/ had no
+    path forward but a bare upload box. The sidebar's 'Try the demo data' button must point the
+    same loading pipeline at the real, bundled data/synthetic/ dataset and actually render."""
+    import dataclasses
+
+    from app import sidebar
+
+    empty_raw_dir = tmp_path / "raw"
+    empty_raw_dir.mkdir()
+    monkeypatch.setattr(sidebar, "SETTINGS", dataclasses.replace(sidebar.SETTINGS, raw_data_dir=empty_raw_dir))
+
+    at = AppTest.from_file(str(APP_PATH))
+    at.run(timeout=60)
+
+    assert list(at.exception) == []
+    assert any("no data found in data/raw/" in w.value.lower() for w in at.sidebar.get("warning"))
+    button = next(b for b in at.sidebar.get("button") if b.label == "Try the demo data")
+    button.click().run(timeout=60)
+
+    assert list(at.exception) == []
+    assert any("using the bundled demo dataset" in i.value.lower() for i in at.sidebar.get("info"))
+    home = _tab(at, "Home")
+    assert list(home.exception) == []
+    assert len(home.get("metric")) > 0  # real KPI metrics rendered, not an empty state
+
+    # Uploading real data must still win over demo mode, even with the flag left set.
+    switch_button = next(b for b in at.sidebar.get("button") if b.label == "Use my own data instead")
+    switch_button.click().run(timeout=60)
+    assert list(at.exception) == []
+    assert any("no data found in data/raw/" in w.value.lower() for w in at.sidebar.get("warning"))

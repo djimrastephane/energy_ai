@@ -178,7 +178,7 @@ Expected format (a real excerpt from the bundled demo dataset,
 
 ```
 energy_ai/
-├── app/               # Streamlit UI: 9 question-oriented tabs, sidebar, charts, HTML report
+├── app/               # Streamlit UI: 7 question-oriented tabs, sidebar, charts, HTML report
 ├── src/               # all analysis logic -- no Streamlit imports, unit-testable directly
 ├── data/raw/          # your energy provider's CSV exports (data/processed/ holds the weather cache)
 ├── data/synthetic/    # non-personal demo dataset used for this README's screenshots and examples
@@ -189,11 +189,12 @@ energy_ai/
 ```
 
 Navigation is organized around user questions -- Home, "How did this
-month compare?", "What drives my usage?", "Costs and carbon", "Did
-anything unusual happen?", "What should I expect next?", "Ask the Energy
-Consultant" -- with whole-period views under **Long-term trends** and the
+month compare?", "Ask the Energy Consultant" (promoted early, since it's
+the app's primary differentiator), "Why did this happen?" (fuel mix,
+seasons, weather, unusual months, usage shifts), "Costs and carbon", and
+"What should I expect next?" -- with whole-period views and the
 statistical machinery (full AI Analyst report, diagnostics, data
-quality) under **Data and methods**: demoted, never deleted.
+quality) grouped under a single **Advanced** tab: demoted, never deleted.
 
 Each module carries a docstring explaining what it does and why -- the
 layout above is deliberately shallow; start at `app/streamlit_app.py` or

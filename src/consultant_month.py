@@ -163,7 +163,7 @@ def answer_which_fuel_caused_change(ctx: ConsultantContext) -> ConsultantAnswer:
             "month and its comparison period.",
             evidence=[],
             confidence=None,
-            related_tab="What drives my usage?",
+            related_tab="Why did this happen?",
         )
     narrative = build_monthly_comparison_narrative(total, contributions, ctx.weather_enabled)
     parts = [narrative.which_fuel or "Neither fuel dominates the change."]

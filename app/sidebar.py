@@ -5,6 +5,7 @@ under the ~300-line guideline as Phase 4 adds more tabs.
 from __future__ import annotations
 
 import dataclasses
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
@@ -30,11 +31,22 @@ _FUEL_DISPLAY: dict[EnergyType, str] = {
 
 _WEATHER_LOCATION_KEY = "weather_confirmed_location"  # WeatherConfig, once the user confirms a match
 _WEATHER_QUERY_KEY = "weather_location_query"
+WEATHER_ENABLED_KEY = "weather_adjustment_enabled"  # exported so a tab's own "turn this on" button
+# can flip it (Weather Impact's on-tab CTA -- UX audit finding: the app's most persuasive
+# analysis was off by default with no in-page way to enable it, only a passive sidebar mention).
+USE_DEMO_DATA_KEY = "use_demo_data"  # exported so tests/other modules can check demo-mode state
 
 
-@st.cache_data(show_spinner="Loading data/raw/*.csv...")
-def _load_default_data(pattern: str = FUEL_FILE_PATTERNS["total"]) -> tuple[pd.DataFrame, PreprocessingReport]:
-    files = discover_csv_files(SETTINGS.raw_data_dir, pattern=pattern)
+@st.cache_data(show_spinner="Loading CSVs...")
+def _load_default_data(
+    pattern: str = FUEL_FILE_PATTERNS["total"], raw_dir: Path = SETTINGS.raw_data_dir
+) -> tuple[pd.DataFrame, PreprocessingReport]:
+    """Load one fuel's exports from ``raw_dir`` -- normally ``data/raw/``, or the bundled
+    ``data/synthetic/`` demo dataset when the sidebar's "Try the demo data" button is active.
+    Cached per (pattern, raw_dir), so switching between real and demo data is a cache miss
+    the first time and a hit on every rerun after.
+    """
+    files = discover_csv_files(raw_dir, pattern=pattern)
     raw = load_all(files)
     return run_pipeline(raw)
 
@@ -69,7 +81,7 @@ def _confirm_location(candidate: LocationCandidate) -> None:
 
 
 def _load_all_fuels(
-    uploaded,
+    uploaded, raw_dir: Path = SETTINGS.raw_data_dir
 ) -> tuple[dict[EnergyType, pd.DataFrame], dict[EnergyType, PreprocessingReport]]:
     """Load Total/Electricity/Gas independently (each cached separately by pattern).
 
@@ -81,6 +93,10 @@ def _load_all_fuels(
     (``src.fuel.infer_total_from_electricity_and_gas``) rather than left
     unavailable -- a provider that only exports per-fuel breakdowns
     shouldn't lose the combined view.
+
+    ``raw_dir`` defaults to ``data/raw/`` but is ignored whenever ``uploaded`` is truthy
+    (an upload always wins) -- it's how the "Try the demo data" button points this same
+    pipeline at ``data/synthetic/`` instead.
     """
     frames: dict[EnergyType, pd.DataFrame] = {}
     reports: dict[EnergyType, PreprocessingReport] = {}
@@ -88,7 +104,7 @@ def _load_all_fuels(
         if uploaded:
             frames[fuel], reports[fuel] = _load_uploaded_data(filter_sources_by_fuel(uploaded, fuel))
         else:
-            frames[fuel], reports[fuel] = _load_default_data(pattern)
+            frames[fuel], reports[fuel] = _load_default_data(pattern, raw_dir)
 
     if frames["total"].empty and not frames["electricity"].empty and not frames["gas"].empty:
         frames["total"], reports["total"] = infer_total_from_electricity_and_gas(
@@ -120,8 +136,15 @@ def render_sidebar() -> tuple[
         accept_multiple_files=True,
     )
 
+    # An upload always wins over demo mode, even if the flag from an earlier run is still set
+    # (UX audit finding: a first-time visitor with no CSV in hand and an empty data/raw/ had no
+    # path forward but a bare upload box -- this is that path, pointing the exact same pipeline
+    # at the bundled non-personal data/synthetic/ dataset instead of inventing a new one).
+    use_demo = bool(st.session_state.get(USE_DEMO_DATA_KEY)) and not uploaded
+    active_raw_dir = SETTINGS.synthetic_data_dir if use_demo else SETTINGS.raw_data_dir
+
     try:
-        fuel_frames, fuel_reports = _load_all_fuels(uploaded)
+        fuel_frames, fuel_reports = _load_all_fuels(uploaded, active_raw_dir)
     except Exception as exc:  # noqa: BLE001 -- ingestion errors must not crash the app
         st.sidebar.error(f"Could not load data: {exc}")
         st.stop()
@@ -129,7 +152,19 @@ def render_sidebar() -> tuple[
 
     available_fuels = [f for f in _FUEL_DISPLAY if not fuel_frames[f].empty]
     if not available_fuels:
-        st.sidebar.error("No valid data loaded.")
+        if use_demo:
+            # The demo button led here a second time -- something's wrong with the bundled
+            # files themselves, not something offering the button again would fix.
+            st.sidebar.error("No valid data loaded, including the bundled demo dataset.")
+            st.stop()
+        st.sidebar.warning("No data found in data/raw/, and nothing was uploaded above.")
+        if st.sidebar.button("Try the demo data"):
+            st.session_state[USE_DEMO_DATA_KEY] = True
+            st.rerun()
+        st.sidebar.caption(
+            "Loads a non-personal synthetic dataset (real Aberdeen weather + a modeled "
+            "household) so you can explore every tab before uploading your own exports."
+        )
         st.stop()
 
     st.sidebar.subheader("Fuel")
@@ -148,6 +183,11 @@ def render_sidebar() -> tuple[
         st.sidebar.caption("Total inferred from Electricity Use + Gas Use (no separate Total Use export found).")
     elif uploaded:
         st.sidebar.success(f"Loaded {report.n_files_loaded} uploaded file(s) for {_FUEL_DISPLAY[fuel]}")
+    elif use_demo:
+        st.sidebar.info(f"Using the bundled demo dataset ({report.n_files_loaded} file(s), not real data).")
+        if st.sidebar.button("Use my own data instead"):
+            st.session_state[USE_DEMO_DATA_KEY] = False
+            st.rerun()
     else:
         st.sidebar.caption(f"Using {report.n_files_loaded} file(s) from data/raw/ ({_FUEL_DISPLAY[fuel]})")
         if st.sidebar.button("Reload data/raw/"):
@@ -242,7 +282,7 @@ def render_sidebar() -> tuple[
             st.sidebar.caption(f"No matches found for {location_query!r}.")
 
     weather_config: WeatherConfig = st.session_state.get(_WEATHER_LOCATION_KEY, SETTINGS.weather)
-    weather_enabled = st.sidebar.toggle("Weather adjustment", value=False)
+    weather_enabled = st.sidebar.toggle("Weather adjustment", value=False, key=WEATHER_ENABLED_KEY)
     pending_note = "" if location_confirmed else " (pending confirmation above)"
     st.sidebar.caption(
         f"Location: {weather_config.location_label}{pending_note}. Turning this on fetches "

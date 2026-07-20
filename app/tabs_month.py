@@ -269,7 +269,7 @@ def _render_explanation(ctx: MonthContext) -> None:
     if narrative.weather_effect is None and not ctx.weather_enabled:
         st.caption("Turn on 'Weather adjustment' in the sidebar to see how much weather explains.")
     icon = _CONFIDENCE_ICON[narrative.confidence]
-    st.caption(f"Confidence: {icon} {narrative.confidence} -- {narrative.confidence_reason}")
+    st.caption(f"Confidence: {icon} {narrative.confidence} -- {narrative.confidence_reason}")
     st.caption(f"Limitation: {narrative.limitation}")
 
 
@@ -407,7 +407,7 @@ def _render_technical_details(ctx: MonthContext, anomalies: list[Anomaly]) -> No
             st.markdown(
                 f"**Anomaly status:** flagged as a {month_anomaly.direction} by "
                 f"{len(month_anomaly.methods)} of 3 methods ({', '.join(month_anomaly.methods)}) -- "
-                f"{month_anomaly.rank_context}. See 'Did anything unusual happen?'."
+                f"{month_anomaly.rank_context}. See 'Why did this happen?'."
             )
         else:
             st.markdown("**Anomaly status:** not flagged by any of the three detection methods.")
@@ -424,11 +424,11 @@ def _render_long_term(clean_df: pd.DataFrame) -> None:
             delta = f"{kpi.pct_change:+.1f}% vs previous 12 months" if kpi.pct_change is not None else None
             value = format_gbp(kpi.current) if kpi.unit == "£" else f"{kpi.current:,.0f} kWh"
             col.metric(f"{kpi.label} (trailing 12 months)", value, delta, delta_color="off")
-    # Explicit key: the same overlay chart also renders under Long-term trends, and two
+    # Explicit key: the same overlay chart also renders under Advanced, and two
     # identical figures would collide on Streamlit's auto-generated element ID.
     st.plotly_chart(year_over_year_overlay(clean_df), width="stretch", key="month_long_term_overlay")
     st.caption(
-        "One line per year, aligned by calendar month. The 'Long-term trends' tab holds the "
+        "One line per year, aligned by calendar month. The 'Advanced' tab holds the "
         "full whole-period analysis: annual totals, fuel comparisons, and underlying trend."
     )
 
@@ -464,7 +464,7 @@ def render_month_comparison(
 
     st.markdown(f"#### {narrative.headline}")
     st.caption(
-        f"{featured.judgement} · Confidence: {_CONFIDENCE_ICON[featured.confidence]} "
+        f"{featured.judgement} · Confidence: {_CONFIDENCE_ICON[featured.confidence]} "
         f"{featured.confidence}"
     )
 

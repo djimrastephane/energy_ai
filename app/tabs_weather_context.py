@@ -101,7 +101,7 @@ def render_anomaly_weather_context(
             f"{interpretation.residual_monthly_kwh:+,.0f} kWh versus the model's expectation."
         )
     icon = _CONFIDENCE_ICON[interpretation.confidence]
-    st.caption(f"Confidence: {icon} {interpretation.confidence}. {interpretation.limitation}")
+    st.caption(f"Confidence: {icon} {interpretation.confidence}. {interpretation.limitation}")
 
 
 def render_severe_weather_sections(

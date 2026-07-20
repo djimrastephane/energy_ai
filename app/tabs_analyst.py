@@ -126,7 +126,11 @@ def _render_recommendations(analyst_report: AnalystReport) -> None:
         st.info(NO_RECOMMENDATIONS_MESSAGE)
         return
     for r in analyst_report.recommendations:
-        with st.expander(f"[{r.confidence}] {r.title}"):
+        # The £ figure is what a homeowner opens this section to find -- surface it in the
+        # collapsed header itself, not just as one more metric buried inside (UX audit finding:
+        # recommendation cards led with title/confidence and buried the saving mid-card).
+        saving_suffix = f" -- ≈ {format_gbp(r.estimated_saving_gbp)}/yr" if r.estimated_saving_gbp is not None else ""
+        with st.expander(f"[{r.confidence}] {r.title}{saving_suffix}"):
             st.write(r.action)
             if r.estimated_saving_gbp is not None:
                 st.metric("Estimated annual saving", format_gbp(r.estimated_saving_gbp))
@@ -192,7 +196,10 @@ def render_ai_analyst(
     st.header("Confidence")
     for key, rating in analyst_report.confidence.items():
         icon = _CONFIDENCE_ICON[rating.level]
-        st.write(f"{icon} **{key.replace('_', ' ').title()}**: {rating.level} -- {rating.reason}")
+        # A non-breaking space, not a regular one: a plain space after this particular colored-
+        # circle emoji visually collapses to no gap at all in most browsers/fonts (UX audit
+        # finding), and HTML would collapse a second literal space anyway.
+        st.write(f"{icon} **{key.replace('_', ' ').title()}**: {rating.level} -- {rating.reason}")
 
     st.header("Limitations")
     for item in analyst_report.limitations:

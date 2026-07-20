@@ -27,7 +27,7 @@ def test_load_all_fuels_infers_total_when_only_electricity_and_gas_exist(monkeyp
     elec = pd.DataFrame({"month_start": idx, "consumption_kwh": [100.0, 110.0, 120.0], "cost_gbp": [30.0, 33.0, 36.0]})
     gas = pd.DataFrame({"month_start": idx, "consumption_kwh": [500.0, 300.0, 100.0], "cost_gbp": [50.0, 30.0, 10.0]})
 
-    def _fake_load_default(pattern):
+    def _fake_load_default(pattern, raw_dir=None):
         if "Total" in pattern:
             return _empty_frame(), _report(0, [], pd.DatetimeIndex([]))
         if "Electricity" in pattern:
@@ -51,7 +51,7 @@ def test_load_all_fuels_leaves_total_empty_when_only_electricity_exists(monkeypa
     idx = pd.date_range("2024-01-01", periods=3, freq="MS")
     elec = pd.DataFrame({"month_start": idx, "consumption_kwh": [100.0, 110.0, 120.0], "cost_gbp": [30.0, 33.0, 36.0]})
 
-    def _fake_load_default(pattern):
+    def _fake_load_default(pattern, raw_dir=None):
         if "Electricity" in pattern:
             return elec, _report(1, ["Electricity Use 2024.csv"], idx)
         return _empty_frame(), _report(0, [], pd.DatetimeIndex([]))
@@ -70,7 +70,7 @@ def test_load_all_fuels_does_not_override_a_real_total_file(monkeypatch):
     gas = pd.DataFrame({"month_start": idx, "consumption_kwh": [500.0, 300.0, 100.0], "cost_gbp": [50.0, 30.0, 10.0]})
     real_total = pd.DataFrame({"month_start": idx, "consumption_kwh": [601.0, 411.0, 221.0], "cost_gbp": [80.5, 63.5, 46.5]})
 
-    def _fake_load_default(pattern):
+    def _fake_load_default(pattern, raw_dir=None):
         if "Total" in pattern:
             return real_total, _report(1, ["Total Use 2024.csv"], idx)
         if "Electricity" in pattern:

@@ -13,6 +13,12 @@ from pathlib import Path
 PROJECT_ROOT: Path = Path(__file__).resolve().parent
 RAW_DATA_DIR: Path = PROJECT_ROOT / "data" / "raw"
 PROCESSED_DATA_DIR: Path = PROJECT_ROOT / "data" / "processed"
+# Bundled, non-personal demo dataset (see scripts/generate_synthetic_dataset.py) -- the sidebar's
+# "Try the demo data" button points the ordinary data-loading pipeline here instead of at
+# data/raw/ (UX audit finding: a first-time visitor with no CSV in hand had no path forward but
+# a bare upload box). Not created via mkdir like the dirs below: it's checked into git with real
+# files, not a runtime output directory.
+SYNTHETIC_DATA_DIR: Path = PROJECT_ROOT / "data" / "synthetic"
 MODELS_DIR: Path = PROJECT_ROOT / "models"
 OUTPUTS_DIR: Path = PROJECT_ROOT / "outputs"
 
@@ -220,6 +226,7 @@ class MonthComparisonThresholds:
 class Settings:
     project_root: Path = PROJECT_ROOT
     raw_data_dir: Path = RAW_DATA_DIR
+    synthetic_data_dir: Path = SYNTHETIC_DATA_DIR
     processed_data_dir: Path = PROCESSED_DATA_DIR
     models_dir: Path = MODELS_DIR
     outputs_dir: Path = OUTPUTS_DIR

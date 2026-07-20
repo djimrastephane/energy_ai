@@ -23,13 +23,36 @@ from src.statistics import describe, interpret
 
 
 def render_consumption_analysis(period_df: pd.DataFrame) -> None:
+    # Each chart gets its own one-line takeaway rather than stacking four charts behind a
+    # single shared caption (UX audit finding: this tab, alongside Fuel breakdown, was the
+    # app's clearest "collection of charts" moment). The one computed fact below (highest/
+    # lowest month) is a plain min/max over data already loaded, not a new statistic.
     st.plotly_chart(monthly_consumption_bar(period_df), width="stretch")
+    highest = period_df.loc[period_df["consumption_kwh"].idxmax()]
+    lowest = period_df.loc[period_df["consumption_kwh"].idxmin()]
+    st.caption(
+        f"Highest month in the selected period: {highest['month_start']:%B %Y} "
+        f"({highest['consumption_kwh']:,.0f} kWh). Lowest: {lowest['month_start']:%B %Y} "
+        f"({lowest['consumption_kwh']:,.0f} kWh)."
+    )
+
     col1, col2 = st.columns(2)
     with col1:
         st.plotly_chart(annual_totals_bar(period_df), width="stretch")
     with col2:
         st.plotly_chart(year_over_year_overlay(period_df), width="stretch")
+    st.caption(
+        "Annual totals on the left, each year's monthly shape overlaid on the right -- lines "
+        "sitting close together mean a stable year-to-year pattern; lines drifting apart mean "
+        "usage is trending up or down."
+    )
+
     st.plotly_chart(rolling_average_line(period_df, window=3), width="stretch")
+    st.caption(
+        "A 3-month rolling average smooths out month-to-month noise so the underlying trend is "
+        "easier to see through the normal seasonal swings."
+    )
+
     st.caption(
         "Calendar heatmaps and consumption duration curves require daily or sub-daily meter "
         "readings. The source data here is monthly, so those chart types are omitted rather "
