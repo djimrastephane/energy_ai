@@ -136,19 +136,20 @@ honestly support, rather than faking daily-data resolution.
 Expected format (a real excerpt from the bundled demo dataset,
 `data/synthetic/Total Use 2024.csv`):
 
-```csv
-Month,Cost (£),Consumption (kWh)
-January 2024,141.65,1595.99
-February 2024,117.46,1319.17
-March 2024,116.85,1300.29
-```
+| Month | Cost (£) | Consumption (kWh) |
+|---|---|---|
+| January 2024 | 141.65 | 1595.99 |
+| February 2024 | 117.46 | 1319.17 |
+| March 2024 | 116.85 | 1300.29 |
 
-- **One file per year.** `Total Use <year>.csv` is all you need; separate
-  `Electricity Use <year>.csv` / `Gas Use <year>.csv` files are optional
-  and unlock fuel-level analysis (cross-checked against Total for
-  consistency, so a mismatch gets flagged, not silently trusted).
+- **You need two files: `Electricity Use <year>.csv` and
+  `Gas Use <year>.csv`** (one file per year, per fuel). The combined
+  "Total" view is inferred automatically by summing them -- you don't
+  need a separate Total Use export, though the app will use one instead
+  if your provider supplies it (and cross-check it against Electricity +
+  Gas for consistency, so a mismatch gets flagged, not silently trusted).
 - **The filename is how the app tells the files apart** -- it must
-  contain "Total Use", "Electricity Use", or "Gas Use" somewhere in it.
+  contain "Electricity Use", "Gas Use", or "Total Use" somewhere in it.
   Rename the file if your provider's export is named differently.
 - Drop your files into `data/raw/`, or upload them from the sidebar.
   Nothing assumes the input is clean: duplicates, conflicts, missing

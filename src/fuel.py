@@ -16,6 +16,12 @@ import numpy as np
 import pandas as pd
 
 from src.findings import Finding
+from src.preprocessing import (
+    PreprocessingReport,
+    build_monthly_series,
+    detect_missing_months,
+    validate_units,
+)
 from src.utils import get_logger, safe_divide
 
 logger = get_logger(__name__)
@@ -123,6 +129,63 @@ def combine_fuel_frames(electricity_df: pd.DataFrame, gas_df: pd.DataFrame) -> p
     total_kwh = combined["electricity_kwh"] + combined["gas_kwh"]
     combined["electricity_share_pct"] = np.where(total_kwh > 0, combined["electricity_kwh"] / total_kwh * 100, np.nan)
     return combined
+
+
+def infer_total_from_electricity_and_gas(
+    electricity_df: pd.DataFrame, gas_df: pd.DataFrame
+) -> tuple[pd.DataFrame, PreprocessingReport]:
+    """Synthesize a Total (Electricity + Gas) monthly series when no separate Total Use
+    export exists, by summing the two already-cleaned per-fuel frames.
+
+    A provider that only exports per-fuel breakdowns shouldn't lose the combined view --
+    this is what lets ``app.sidebar`` offer "Total" even without a dedicated file.
+
+    Inner join on ``month_start``: a month only appears in the result if both fuels have
+    data for it, since a partial sum would understate the real total. Reuses
+    :func:`src.preprocessing.build_monthly_series`/``validate_units``/``detect_missing_months``
+    so the output is the exact same "clean monthly frame" shape and carries the same
+    plausibility/missing-month checks every other module already expects -- a drop-in
+    substitute for a real Total Use file wherever the app reads "total". Deliberately does
+    not re-run :func:`src.preprocessing.deduplicate`: the inputs are already deduplicated
+    individually, and summing them cannot introduce a new duplicate month.
+    """
+    if electricity_df.empty or gas_df.empty:
+        empty = build_monthly_series(pd.DataFrame(columns=["month_start", "cost_gbp", "consumption_kwh"]))
+        return empty, PreprocessingReport(
+            n_files_loaded=0,
+            source_files=[],
+            date_range=None,
+            n_months=0,
+            missing_months=[],
+            duplicates_removed=0,
+        )
+
+    elec = electricity_df[["month_start", "consumption_kwh", "cost_gbp"]]
+    gas = gas_df[["month_start", "consumption_kwh", "cost_gbp"]]
+    summed = (
+        elec.merge(gas, on="month_start", suffixes=("_elec", "_gas"), how="inner")
+        .assign(
+            consumption_kwh=lambda d: d["consumption_kwh_elec"] + d["consumption_kwh_gas"],
+            cost_gbp=lambda d: d["cost_gbp_elec"] + d["cost_gbp_gas"],
+        )[["month_start", "cost_gbp", "consumption_kwh"]]
+        .sort_values("month_start")
+        .reset_index(drop=True)
+    )
+    summed, outlier_warnings = validate_units(summed)
+    missing_months = detect_missing_months(summed)
+    clean = build_monthly_series(summed)
+
+    date_range = (clean["month_start"].min(), clean["month_start"].max()) if not clean.empty else None
+    report = PreprocessingReport(
+        n_files_loaded=0,
+        source_files=["inferred: Electricity Use + Gas Use"],
+        date_range=date_range,
+        n_months=len(clean),
+        missing_months=missing_months,
+        duplicates_removed=0,
+        outlier_warnings=outlier_warnings,
+    )
+    return clean, report
 
 
 def finding_fuel_mix(combined_df: pd.DataFrame) -> Finding | None:

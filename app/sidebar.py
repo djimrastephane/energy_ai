@@ -11,7 +11,7 @@ import streamlit as st
 
 from config import SETTINGS, BillingConfig, WeatherConfig
 from src.forecast_evaluation import MODEL_REGISTRY
-from src.fuel import cross_check_fuel_totals
+from src.fuel import cross_check_fuel_totals, infer_total_from_electricity_and_gas
 from src.geocoding import GeocodingError, LocationCandidate, search_location
 from src.ingestion import (
     FUEL_FILE_PATTERNS,
@@ -76,7 +76,11 @@ def _load_all_fuels(
     A fuel with zero matching files/uploads yields an empty ``clean`` frame
     -- already how ``load_all([])``/``run_pipeline`` degrade -- so it's
     simply excluded from the sidebar's fuel choices below rather than
-    special-cased here.
+    special-cased here. The one exception: if no Total Use export exists but
+    both Electricity Use and Gas Use do, Total is inferred by summing them
+    (``src.fuel.infer_total_from_electricity_and_gas``) rather than left
+    unavailable -- a provider that only exports per-fuel breakdowns
+    shouldn't lose the combined view.
     """
     frames: dict[EnergyType, pd.DataFrame] = {}
     reports: dict[EnergyType, PreprocessingReport] = {}
@@ -85,6 +89,12 @@ def _load_all_fuels(
             frames[fuel], reports[fuel] = _load_uploaded_data(filter_sources_by_fuel(uploaded, fuel))
         else:
             frames[fuel], reports[fuel] = _load_default_data(pattern)
+
+    if frames["total"].empty and not frames["electricity"].empty and not frames["gas"].empty:
+        frames["total"], reports["total"] = infer_total_from_electricity_and_gas(
+            frames["electricity"], frames["gas"]
+        )
+
     return frames, reports
 
 
@@ -133,7 +143,10 @@ def render_sidebar() -> tuple[
         )
 
     clean, report = fuel_frames[fuel], fuel_reports[fuel]
-    if uploaded:
+    total_is_inferred = fuel == "total" and report.n_files_loaded == 0 and not clean.empty
+    if total_is_inferred:
+        st.sidebar.caption("Total inferred from Electricity Use + Gas Use (no separate Total Use export found).")
+    elif uploaded:
         st.sidebar.success(f"Loaded {report.n_files_loaded} uploaded file(s) for {_FUEL_DISPLAY[fuel]}")
     else:
         st.sidebar.caption(f"Using {report.n_files_loaded} file(s) from data/raw/ ({_FUEL_DISPLAY[fuel]})")
