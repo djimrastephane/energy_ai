@@ -73,7 +73,7 @@ def render_cost_intelligence(
 ) -> None:
     billing_config = billing_config or SETTINGS.billing
     st.caption(
-        "The OVO exports carry consumption cost only; standing charges and VAT below are "
+        "The exports carry consumption cost only; standing charges and VAT below are "
         "estimated from your supplied tariff details (see the bill breakdown section)."
     )
 

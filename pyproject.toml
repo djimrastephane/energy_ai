@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "energy-ai"
 version = "1.0.0"
-description = "AI Home Energy Intelligence Platform: an evidence-based energy analyst for OVO monthly billing exports"
+description = "AI Home Energy Intelligence Platform: an evidence-based energy analyst for monthly energy billing exports"
 requires-python = ">=3.12"
 dependencies = [
     # Ingestion, statistics, UI

@@ -1,4 +1,4 @@
-"""Generate a synthetic OVO-style dataset for public deployment.
+"""Generate a synthetic energy-provider-style dataset for public deployment.
 
 The user's real household data in ``data/raw/`` stays there for local
 testing; this script produces a *separate*, non-personal dataset in
@@ -134,7 +134,7 @@ def write_csvs(df: pd.DataFrame) -> None:
     }
     for label, (kwh_col, cost_col) in flavors.items():
         for year, year_df in df.groupby(df["month_start"].dt.year):
-            path = OUT_DIR / f"OVO {label} Use {year}.csv"
+            path = OUT_DIR / f"{label} Use {year}.csv"
             lines = ["Month,Cost (£),Consumption (kWh)"]
             for _, row in year_df.iterrows():
                 lines.append(f"{row['month_start']:%B %Y},{row[cost_col]:.2f},{row[kwh_col]:.2f}")

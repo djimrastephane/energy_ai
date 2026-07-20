@@ -16,7 +16,7 @@ def _write_csv(path, rows: str) -> None:
 
 
 def test_load_single_csv_parses_month_and_values(tmp_path):
-    path = tmp_path / "OVO Total Use 2024.csv"
+    path = tmp_path / "Total Use 2024.csv"
     _write_csv(path, "January 2024,103.90,959.40\nFebruary 2024,56.15,360.06\n")
 
     df = load_single_csv(path)
@@ -26,7 +26,7 @@ def test_load_single_csv_parses_month_and_values(tmp_path):
     assert df.loc[0, "month_start"] == pd.Timestamp("2024-01-01")
     assert df.loc[0, "cost_gbp"] == pytest.approx(103.90)
     assert df.loc[0, "consumption_kwh"] == pytest.approx(959.40)
-    assert df.loc[0, "source_file"] == "OVO Total Use 2024.csv"
+    assert df.loc[0, "source_file"] == "Total Use 2024.csv"
 
 
 def test_load_single_csv_missing_column_raises(tmp_path):
@@ -54,13 +54,13 @@ def test_load_single_csv_non_numeric_value_raises(tmp_path):
 
 
 def test_discover_csv_files_only_returns_csvs_sorted(tmp_path):
-    (tmp_path / "OVO Total Use 2024.csv").write_text("x")
-    (tmp_path / "OVO Total Use 2023.csv").write_text("x")
+    (tmp_path / "Total Use 2024.csv").write_text("x")
+    (tmp_path / "Total Use 2023.csv").write_text("x")
     (tmp_path / "notes.txt").write_text("x")
 
     files = discover_csv_files(tmp_path)
 
-    assert [f.name for f in files] == ["OVO Total Use 2023.csv", "OVO Total Use 2024.csv"]
+    assert [f.name for f in files] == ["Total Use 2023.csv", "Total Use 2024.csv"]
 
 
 def test_discover_csv_files_missing_dir_returns_empty(tmp_path):
@@ -68,32 +68,32 @@ def test_discover_csv_files_missing_dir_returns_empty(tmp_path):
 
 
 def test_discover_csv_files_ignores_electricity_and_gas_breakdowns(tmp_path):
-    # OVO also offers separate per-fuel "Electricity Use"/"Gas Use" exports that report the
+    # also offers separate per-fuel "Electricity Use"/"Gas Use" exports that report the
     # same months as the "Total Use" files at finer granularity -- ingesting all three would
     # make every month look like a source conflict. Only "Total Use" files should be picked up.
-    (tmp_path / "OVO Total Use 2023.csv").write_text("x")
-    (tmp_path / "OVO Electricity Use 2023.csv").write_text("x")
-    (tmp_path / "OVO Gas Use 2023.csv").write_text("x")
+    (tmp_path / "Total Use 2023.csv").write_text("x")
+    (tmp_path / "Electricity Use 2023.csv").write_text("x")
+    (tmp_path / "Gas Use 2023.csv").write_text("x")
 
     files = discover_csv_files(tmp_path)
 
-    assert [f.name for f in files] == ["OVO Total Use 2023.csv"]
+    assert [f.name for f in files] == ["Total Use 2023.csv"]
 
 
 def test_discover_csv_files_with_electricity_pattern(tmp_path):
-    (tmp_path / "OVO Total Use 2023.csv").write_text("x")
-    (tmp_path / "OVO Electricity Use 2023.csv").write_text("x")
-    (tmp_path / "OVO Gas Use 2023.csv").write_text("x")
+    (tmp_path / "Total Use 2023.csv").write_text("x")
+    (tmp_path / "Electricity Use 2023.csv").write_text("x")
+    (tmp_path / "Gas Use 2023.csv").write_text("x")
 
     files = discover_csv_files(tmp_path, pattern=FUEL_FILE_PATTERNS["electricity"])
 
-    assert [f.name for f in files] == ["OVO Electricity Use 2023.csv"]
+    assert [f.name for f in files] == ["Electricity Use 2023.csv"]
 
 
 def test_filter_sources_by_fuel_on_paths(tmp_path):
-    total = tmp_path / "OVO Total Use 2023.csv"
-    elec = tmp_path / "OVO Electricity Use 2023.csv"
-    gas = tmp_path / "OVO Gas Use 2023.csv"
+    total = tmp_path / "Total Use 2023.csv"
+    elec = tmp_path / "Electricity Use 2023.csv"
+    gas = tmp_path / "Gas Use 2023.csv"
     for p in (total, elec, gas):
         p.write_text("x")
     sources = [total, elec, gas]
@@ -108,11 +108,11 @@ def test_filter_sources_by_fuel_on_uploaded_file_like_objects():
         def __init__(self, name):
             self.name = name
 
-    sources = [_FakeUpload("OVO Total Use 2024.csv"), _FakeUpload("OVO Gas Use 2024.csv")]
+    sources = [_FakeUpload("Total Use 2024.csv"), _FakeUpload("Gas Use 2024.csv")]
 
     filtered = filter_sources_by_fuel(sources, "gas")
 
-    assert [s.name for s in filtered] == ["OVO Gas Use 2024.csv"]
+    assert [s.name for s in filtered] == ["Gas Use 2024.csv"]
 
 
 def test_filter_sources_by_fuel_raises_on_unknown_fuel():
@@ -121,15 +121,15 @@ def test_filter_sources_by_fuel_raises_on_unknown_fuel():
 
 
 def test_load_all_combines_multiple_files_with_source_tagging(tmp_path):
-    path_2023 = tmp_path / "OVO Total Use 2023.csv"
-    path_2024 = tmp_path / "OVO Total Use 2024.csv"
+    path_2023 = tmp_path / "Total Use 2023.csv"
+    path_2024 = tmp_path / "Total Use 2024.csv"
     _write_csv(path_2023, "September 2023,34.66,180.25\n")
     _write_csv(path_2024, "January 2024,103.90,959.40\n")
 
     df = load_all([path_2023, path_2024])
 
     assert len(df) == 2
-    assert set(df["source_file"]) == {"OVO Total Use 2023.csv", "OVO Total Use 2024.csv"}
+    assert set(df["source_file"]) == {"Total Use 2023.csv", "Total Use 2024.csv"}
 
 
 def test_load_all_empty_sources_returns_empty_typed_frame():

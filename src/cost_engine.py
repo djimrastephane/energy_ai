@@ -1,6 +1,6 @@
 """Task 4 -- cost intelligence: per-fuel and combined billing breakdown, forecast bills.
 
-Standing charges are deliberately omitted: the OVO exports only carry
+Standing charges are deliberately omitted: the exports only carry
 Month/Cost/Consumption, with no standing-charge or tariff-rate column
 anywhere in the raw data -- fabricating a split would violate the "never
 invent a number" principle this platform is built on. Everything here

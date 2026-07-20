@@ -83,9 +83,9 @@ def cross_check_fuel_totals(
     """Verify Electricity + Gas == Total for every month present in all three frames.
 
     A genuine data-quality cross-check unique to having three correlated
-    sources -- "never assume the data is clean" applied to the OVO exports
+    sources -- "never assume the data is clean" applied to the exports
     themselves, not just to parsing a single file. Small tolerances absorb
-    OVO's own rounding, not a real discrepancy.
+    the provider's own rounding, not a real discrepancy.
     """
     total_idx = total_df.set_index("month_start")
     elec_idx = electricity_df.set_index("month_start")

@@ -167,7 +167,7 @@ class BillingConfig:
       ``days_in_month(M)`` days, and it means a month's bill is not
       complete until the 5th of the *following* month has passed.
 
-    ``export_cost_includes_vat``: the OVO export's ``Cost (£)`` column is
+    ``export_cost_includes_vat``: the export's ``Cost (£)`` column is
     treated as the consumption charge *excluding* VAT, matching the
     user-specified breakdown (consumption cost + standing cost + VAT).
     The observed unit rates (~25.2 p/kWh electricity, ~5.7 p/kWh gas in
@@ -194,7 +194,7 @@ class MonthComparisonThresholds:
     month's change, and the narratives never claim one. Rationale:
 
     - ``little_change_pct``: below 5% a monthly billing figure is within
-      ordinary meter-read/billing-calendar noise (OVO bills whole months but
+      ordinary meter-read/billing-calendar noise (providers bill whole months but
       read dates wobble); calling it "little change" avoids narrating noise.
     - ``large_change_pct``: 20%+ of a month's usage is unmistakably material
       on a household bill; between the two bounds is "moderate".

@@ -1,4 +1,4 @@
-"""End-to-end run over the real OVO CSVs in data/raw/ -- catches parsing regressions
+"""End-to-end run over the real household CSVs in data/raw/ -- catches parsing regressions
 that synthetic unit-test data wouldn't."""
 
 import pandas as pd

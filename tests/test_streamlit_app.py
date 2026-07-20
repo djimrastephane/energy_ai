@@ -303,7 +303,7 @@ def test_consultant_free_text_routes_to_month_comparison():
 
 def test_tariff_inputs_drive_bill_estimates():
     """Changing the sidebar's Tariff inputs must flow through to the bill breakdown --
-    the defaults are this household's OVO rates, but another provider's rates work too."""
+    the defaults are this household's default rates, but another provider's rates work too."""
     at = AppTest.from_file(str(APP_PATH))
     at.run(timeout=60)
 

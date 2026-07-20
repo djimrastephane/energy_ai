@@ -16,7 +16,7 @@ from app.charts_fuel import fuel_comparison_bar, fuel_mix_annual_stacked_bar, fu
 from src.fuel import combine_fuel_frames, finding_fuel_mix
 
 _UNAVAILABLE_MESSAGE = (
-    "Fuel-level analysis needs both 'Electricity Use' and 'Gas Use' OVO exports. Add them to "
+    "Fuel-level analysis needs both 'Electricity Use' and 'Gas Use' exports. Add them to "
     "`data/raw/` (or upload them in the sidebar) alongside the existing 'Total Use' files to "
     "unlock this tab."
 )

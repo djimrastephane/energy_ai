@@ -2,7 +2,7 @@
 # - telemetry off: this app is offline-first; the only sanctioned outbound call is the
 #   opt-in Open-Meteo weather fetch, so Streamlit's default usage-stats phone-home is
 #   disabled to keep that guarantee honest.
-# - upload cap: real OVO exports are <1 KB each; the 200 MB default leaves needless
+# - upload cap: real monthly billing exports are <1 KB each; the 200 MB default leaves needless
 #   memory-exhaustion headroom, especially if this were ever deployed publicly.
 
 [browser]

@@ -1,4 +1,4 @@
-"""Clean, validate, and enrich the raw ingested OVO data.
+"""Clean, validate, and enrich the raw ingested billing data.
 
 Never assumes the data is clean: duplicates are removed and reported,
 conflicting values are resolved deterministically and reported, implausible
@@ -138,7 +138,7 @@ def validate_units(
 def flag_in_progress_month(df: pd.DataFrame, today: pd.Timestamp | None = None) -> list[str]:
     """Warn when the latest month's *billing period* has not fully elapsed.
 
-    OVO exports made mid-period contain a period-to-date figure (verified on
+    Exports made mid-period contain a period-to-date figure (verified on
     real data: July 2026 showed 107.87 kWh on July 18 vs. 150.59 kWh for the
     full July 2025), but every downstream analysis treats each row as a
     complete month -- ``avg_daily_kwh`` divides by the full ``days_in_month``,

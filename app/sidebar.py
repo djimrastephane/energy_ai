@@ -105,7 +105,7 @@ def render_sidebar() -> tuple[
     st.sidebar.title("Controls")
     st.sidebar.subheader("Data")
     uploaded = st.sidebar.file_uploader(
-        "Upload OVO 'Total Use', 'Electricity Use', and/or 'Gas Use' CSV exports",
+        "Upload your 'Total Use', 'Electricity Use', and/or 'Gas Use' CSV exports",
         type="csv",
         accept_multiple_files=True,
     )
@@ -184,7 +184,7 @@ def render_sidebar() -> tuple[
         vat_rate=vat_pct / 100,
     )
     st.sidebar.caption(
-        "Defaults are this household's OVO tariff (July 2026) -- adjust if your provider "
+        "Defaults are this household's energy tariff (July 2026) -- adjust if your provider "
         "charges differently. Used everywhere a full bill is estimated (consumption + "
         "standing charge + VAT); the exports themselves carry consumption cost only."
     )

@@ -82,7 +82,7 @@ st.set_page_config(page_title="AI Home Energy Intelligence Platform", layout="wi
 def main() -> None:
     st.title("AI Home Energy Intelligence Platform")
     st.caption(
-        "An evidence-based energy analyst, not a statistics dashboard -- built on real OVO Energy "
+        "An evidence-based energy analyst, not a statistics dashboard -- built on real energy provider "
         "monthly billing exports. Start with Home or 'How did this month compare?'; the other "
         "tabs hold the underlying analysis every conclusion there is traceable to."
     )

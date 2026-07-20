@@ -52,7 +52,7 @@ def get_logger(name: str) -> logging.Logger:
 
 
 def parse_month_year(text: str) -> datetime:
-    """Parse an OVO-style ``"September 2023"`` string into a month-start datetime.
+    """Parse a ``"September 2023"``-style string into a month-start datetime.
 
     Raises:
         ValueError: if the text does not match a recognised ``"<Month> <Year>"``

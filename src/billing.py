@@ -1,6 +1,6 @@
 """Full-bill estimates: billing periods, standing charges, and VAT.
 
-The OVO exports carry consumption cost only. With the user-supplied tariff
+The exports carry consumption cost only. With the user-supplied tariff
 facts in ``config.BillingConfig`` (standing charges, 5% VAT, and the
 6th-to-5th billing cycle), a full bill can now be estimated as
 

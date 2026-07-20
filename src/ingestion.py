@@ -1,4 +1,4 @@
-"""Load raw OVO Energy CSV exports into a single tidy DataFrame.
+"""Load raw monthly energy billing CSV exports into a single tidy DataFrame.
 
 Handles multiple yearly files (past or future), files supplied as
 filesystem paths, and files uploaded through the Streamlit sidebar
@@ -6,7 +6,7 @@ filesystem paths, and files uploaded through the Streamlit sidebar
 attribute). Never assumes the data is clean: malformed schemas raise a
 clear :class:`IngestionError` instead of being silently coerced.
 
-OVO exports come in three flavours that share the same schema: "Total Use"
+Exports come in three flavours that share the same schema: "Total Use"
 (electricity + gas combined), "Electricity Use", and "Gas Use". By default
 only "Total Use" is discovered (see :data:`FUEL_FILE_PATTERNS` and
 :func:`filter_sources_by_fuel` for fuel-level analysis) -- mixing all three
@@ -45,7 +45,7 @@ EnergyType = Literal["total", "electricity", "gas"]
 
 
 class IngestionError(ValueError):
-    """Raised when a source file does not match the expected OVO export schema."""
+    """Raised when a source file does not match the expected billing export schema."""
 
 
 class _NamedBuffer(Protocol):
@@ -94,7 +94,7 @@ def filter_sources_by_fuel(sources: list, fuel: EnergyType) -> list:
 
 
 def load_single_csv(source: Path | _NamedBuffer) -> pd.DataFrame:
-    """Parse one OVO export into a tidy frame with columns:
+    """Parse one energy billing export into a tidy frame with columns:
 
     ``month_start`` (Timestamp), ``cost_gbp`` (float), ``consumption_kwh`` (float),
     ``source_file`` (str).

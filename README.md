@@ -4,8 +4,8 @@
 ![coverage](https://img.shields.io/badge/coverage-97%25-brightgreen)
 
 An evidence-based energy analyst for your home -- not a statistics
-dashboard. Runs entirely on your machine from OVO Energy monthly billing
-CSV exports: no cloud, no LLM, no API keys. Every conclusion is
+dashboard. Runs entirely on your machine from your energy provider's
+monthly billing CSV exports: no cloud, no LLM, no API keys. Every conclusion is
 deterministic and traceable to a specific computed number, carries a
 confidence rating with its reason, and says "not enough evidence" instead
 of guessing.
@@ -103,9 +103,13 @@ lock with `pip install -e ".[dev]" && pip freeze --exclude-editable > requiremen
 
 ## Your data
 
-Drop OVO's "Total Use" (and optionally "Electricity Use"/"Gas Use") CSV
-exports into `data/raw/`, or upload them from the sidebar. These are
-*monthly* billing summaries (`Month, Cost (£), Consumption (kWh)`), not
+Works with any energy provider's monthly billing export -- not tied to one
+company. Drop your "Total Use" file (and optionally separate "Electricity
+Use"/"Gas Use" files, if your provider breaks usage down by fuel) into
+`data/raw/`, or upload them from the sidebar. The filename must contain
+"Total Use", "Electricity Use", or "Gas Use" so the app can tell the files
+apart -- rename the file if your provider names exports differently. These
+are *monthly* billing summaries (`Month, Cost (£), Consumption (kWh)`), not
 smart-meter readings -- every analysis here is scoped to what ~35 monthly
 observations honestly support, rather than faking daily-data resolution.
 Nothing assumes the input is clean: duplicates, conflicts, missing months,
@@ -134,7 +138,7 @@ and implausible values are detected and reported on the Data Quality tab.
 energy_ai/
 ├── app/          # Streamlit UI: 9 question-oriented tabs, sidebar, charts, HTML report
 ├── src/          # all analysis logic -- no Streamlit imports, unit-testable directly
-├── data/raw/     # your OVO CSV exports (data/processed/ holds the weather cache)
+├── data/raw/     # your energy provider's CSV exports (data/processed/ holds the weather cache)
 ├── docs/         # roadmap, month-comparison + weather data dictionaries, audit reports
 ├── tests/        # pytest suite: unit + integration + UI (AppTest), network-free
 └── config.py     # paths, thresholds, weather/benchmark/carbon constants -- all in one place
