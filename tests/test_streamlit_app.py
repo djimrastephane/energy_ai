@@ -4,14 +4,32 @@ exceptions, with the month-comparison journey as the primary surface.
 Navigation is organized around user questions; ``st.tabs`` nests one level,
 and AppTest flattens nested tabs into ``at.tabs`` in creation order -- so
 tabs are looked up by label here, never by index.
+
+"Real data" above means the bundled ``data/synthetic/`` demo dataset, not ``data/raw/``: the
+latter holds a real household's private export and is intentionally empty/absent in this repo,
+so a suite anyone can clone and run can't depend on it. The autouse fixture below points the
+app's default (no-upload, no-demo-button) data source at ``data/synthetic/`` for every test in
+this file; the one test that needs to see the true empty-``data/raw/`` state (the demo-data
+button itself) layers its own further override on top.
 """
 
+import dataclasses
 from pathlib import Path
 
 import pandas as pd
+import pytest
 from streamlit.testing.v1 import AppTest
 
 APP_PATH = Path(__file__).resolve().parent.parent / "app" / "streamlit_app.py"
+
+
+@pytest.fixture(autouse=True)
+def _default_to_synthetic_data(monkeypatch):
+    from app import sidebar
+
+    monkeypatch.setattr(
+        sidebar, "SETTINGS", dataclasses.replace(sidebar.SETTINGS, raw_data_dir=sidebar.SETTINGS.synthetic_data_dir)
+    )
 
 TOP_LEVEL_TABS = [
     "Home",
@@ -154,8 +172,14 @@ def test_app_renders_without_exceptions():
 
 
 def test_month_tab_defaults_to_latest_complete_month_vs_last_year():
-    """The primary journey: latest complete month, combined energy, same month last year --
-    with the in-progress month flagged and excluded, and exactly one primary chart."""
+    """The primary journey: latest complete month, combined energy, same month last year.
+
+    The bundled synthetic dataset's last row is already a complete month (unlike the real
+    household export this suite used to run against), so the in-progress-month notice never
+    fires in this particular check -- that behavior (flagging/excluding a still-open billing
+    period) has its own dedicated, date-controlled unit tests in test_monthly_comparison.py,
+    so it isn't lost, just not re-exercised end-to-end here.
+    """
     at = AppTest.from_file(str(APP_PATH))
     at.run(timeout=60)
 
@@ -174,11 +198,6 @@ def test_month_tab_defaults_to_latest_complete_month_vs_last_year():
 
     mode_select = next(sb for sb in month_tab.get("selectbox") if sb.label == "Compare against")
     assert mode_select.value == "same_month_last_year"
-
-    # Partial-month notice names both months.
-    infos = " ".join(i.value for i in month_tab.get("info"))
-    assert "is incomplete" in infos
-    assert "primary comparison uses" in infos
 
     # Headline answer present, plus the same-month history chart (2 charts total).
     headline = next(md.value for md in month_tab.get("markdown") if md.value.startswith("####"))
@@ -262,8 +281,9 @@ def test_home_month_cards_show_all_three_fuels_with_yoy_deltas():
     assert any(label.startswith("Electricity") for label in metric_labels)
     month_metrics = [m for m in home.get("metric") if "--" in m.label]
     assert all("vs" in (m.delta or "") for m in month_metrics)
-    # Partial-month honesty on the homepage too.
-    assert any("is incomplete" in i.value for i in home.get("info"))
+    # Partial-month honesty on the homepage too -- not exercised here since the synthetic
+    # dataset's last row is already complete (see test_month_tab_defaults_to_latest_complete_
+    # month_vs_last_year's docstring); covered directly by test_monthly_comparison.py instead.
 
 
 def test_consultant_month_answer_uses_currently_selected_month():
@@ -447,9 +467,9 @@ def test_fuel_selectbox_offers_all_three_fuels_and_switching_is_exception_free()
     assert "Fuel: Gas only" in " ".join(md.value for md in at.get("caption"))
 
 
-def test_seasonal_tab_plain_language_summary_matches_real_data():
-    """On the real 35-month dataset: strong seasonality, a stable trend, December 2024 as
-    the largest unexplained deviation (+253 kWh)."""
+def test_seasonal_tab_plain_language_summary_matches_synthetic_data():
+    """On the bundled 60-month synthetic dataset: strong seasonality, a stable trend, January
+    2023 as the largest unexplained deviation (+595 kWh)."""
     at = AppTest.from_file(str(APP_PATH))
     at.run(timeout=60)
 
@@ -457,18 +477,23 @@ def test_seasonal_tab_plain_language_summary_matches_real_data():
     conclusion = next(md.value for md in seasons.get("markdown") if md.value.startswith("#####"))
     assert "winter and summer cycle" in conclusion
     assert "broadly stable" in conclusion
-    assert "December 2024 was materially higher" in conclusion
+    assert "January 2023 was materially higher" in conclusion
 
     metrics = {m.label: (m.value, m.delta) for m in seasons.get("metric")}
     assert metrics["Seasonal influence"][0] == "Strong"
     assert metrics["Long-term trend"][0] == "Stable"
-    assert metrics["Largest unexplained deviation"][0] == "Dec 2024"
-    assert metrics["Largest unexplained deviation"][1] == "+253 kWh"
+    assert metrics["Largest unexplained deviation"][0] == "Jan 2023"
+    assert metrics["Largest unexplained deviation"][1] == "+595 kWh"
 
 
 def _synthetic_daily_weather(start: str, end: str):
     """Deterministic fake daily weather covering [start, end]: seasonal temperatures, a
-    snowy + windy December 2024, quiet otherwise. Full coverage, all schema columns."""
+    snowy + windy January 2023, quiet otherwise. Full coverage, all schema columns.
+
+    January 2023 (not December 2024) so the injected severe weather lands on the bundled
+    data/synthetic/ dataset's actual largest flagged anomaly month -- see
+    test_seasonal_tab_plain_language_summary_matches_synthetic_data.
+    """
     import numpy as np
 
     dates = pd.date_range(start, end, freq="D")
@@ -485,14 +510,14 @@ def _synthetic_daily_weather(start: str, end: str):
             "wind_gust_max_kmh": 40.0,
         }
     )
-    dec24 = (df["date"] >= "2024-12-01") & (df["date"] <= "2024-12-31")
-    snow_days = df["date"].between("2024-12-18", "2024-12-23")
+    event_month = (df["date"] >= "2023-01-01") & (df["date"] <= "2023-01-31")
+    snow_days = df["date"].between("2023-01-18", "2023-01-23")
     df.loc[snow_days, "snowfall_cm"] = [2.0, 6.0, 8.0, 1.0, 2.0, 0.5]
     df.loc[snow_days, "snow_depth_m"] = 0.08
-    wind_days = df["date"].between("2024-12-04", "2024-12-08")
+    wind_days = df["date"].between("2023-01-04", "2023-01-08")
     df.loc[wind_days, "wind_speed_max_kmh"] = [70.0, 65.0, 75.0, 68.0, 63.0]
     df.loc[wind_days, "wind_gust_max_kmh"] = [95.0, 88.0, 110.0, 92.0, 85.0]
-    df.loc[dec24, "temp_mean_c"] = df.loc[dec24, "temp_mean_c"] - 3.0  # a cold December
+    df.loc[event_month, "temp_mean_c"] = df.loc[event_month, "temp_mean_c"] - 3.0  # a cold January
     return df
 
 
@@ -527,7 +552,14 @@ def test_weather_on_renders_severe_weather_context_without_network(monkeypatch):
     assert "what the weather was like" in anom_markdown
     assert "snow day" in anom_markdown
 
-    # Month tab: with weather on, the explanation includes the weather split.
+    # Month tab: with weather on, the explanation includes the weather split. The app's
+    # *default* month (latest complete vs. same month last year) happens to be a "little"
+    # change for the synthetic dataset, which intentionally suppresses the weather-effect
+    # line (src.monthly_narrative._weather_effect) -- select a month with a real swing instead,
+    # so this test still checks the line renders when it's supposed to.
+    month_tab = _tab(at, "How did this month compare?")
+    month_select = next(sb for sb in month_tab.get("selectbox") if sb.label == "Month")
+    month_select.set_value(pd.Timestamp("2025-12-01")).run(timeout=60)
     month_tab = _tab(at, "How did this month compare?")
     assert list(month_tab.exception) == []
     month_markdown = " ".join(md.value for md in month_tab.get("markdown"))

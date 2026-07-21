@@ -127,9 +127,9 @@ def test_monitoring_priorities_lists_non_high_domains():
     assert not any("Weather model" in i for i in items)
 
 
-def test_build_analyst_report_end_to_end_on_real_data():
+def test_build_analyst_report_end_to_end_on_synthetic_data():
     warnings.filterwarnings("ignore")
-    files = discover_csv_files(SETTINGS.raw_data_dir)
+    files = discover_csv_files(SETTINGS.synthetic_data_dir)
     raw = load_all(files)
     clean, report = run_pipeline(raw)
 
@@ -153,17 +153,18 @@ def test_build_analyst_report_end_to_end_on_real_data():
     assert analyst_report.executive_summary
     assert analyst_report.overall_assessment
     assert len(analyst_report.findings) > 0
-    # December 2024 is the known, previously-verified strongest anomaly in this real dataset.
+    # November 2022 is the known, previously-verified strongest anomaly in this synthetic dataset.
     assert analyst_report.biggest_finding is not None
-    assert "December 2024" in analyst_report.biggest_finding.narrative
-    # Data quality is Medium (not High) on the real data because the latest month (the
-    # current calendar month) is flagged as possibly month-to-date -- an intentional,
-    # honest downgrade added by the audit (finding F1): trailing-window KPIs include a
-    # month whose figures may still be accumulating.
-    assert analyst_report.confidence["data_quality"].level == "Medium"
-    assert "warning" in analyst_report.confidence["data_quality"].reason.lower()
+    assert "November 2022" in analyst_report.biggest_finding.narrative
+    # Data quality is High here: unlike the real household export this suite used to run
+    # against, the bundled synthetic dataset's last row is already a complete month, so the
+    # in-progress-month downgrade (audit finding F1) never fires in this specific check --
+    # that behavior has its own dedicated unit tests (test_monthly_comparison.py,
+    # test_preprocessing.py), so it isn't lost, just not re-exercised by this end-to-end test.
+    assert analyst_report.confidence["data_quality"].level == "High"
+    assert "clean history" in analyst_report.confidence["data_quality"].reason.lower()
     assert set(analyst_report.confidence) == {"data_quality", "weather_model", "forecast", "anomaly_detection"}
-    # December 2024 was flagged by all 3 anomaly methods -> High confidence.
+    # November 2022 was flagged by all 3 anomaly methods -> High confidence.
     assert analyst_report.confidence["anomaly_detection"].level == "High"
     assert analyst_report.largest_saving is None  # no weather model supplied in this test
     assert NO_SAVINGS_MESSAGE in analyst_report.executive_summary
@@ -176,16 +177,16 @@ def test_build_analyst_report_end_to_end_on_real_data():
         assert rec.evidence
 
 
-def test_build_analyst_report_household_sections_on_real_data():
-    """Real-data end-to-end check for Task 10/11's household-level sections: fuel mix,
+def test_build_analyst_report_household_sections_on_synthetic_data():
+    """Synthetic-data end-to-end check for Task 10/11's household-level sections: fuel mix,
     weather-sensitivity attribution, largest cost driver, and per-fuel findings -- all built
-    from the three real fuel exports, using the existing (unmodified) analysis functions."""
+    from the three bundled demo fuel exports, using the existing (unmodified) analysis functions."""
     warnings.filterwarnings("ignore")
     w = SETTINGS.weather
 
     fuel_clean, fuel_stl, fuel_anomalies, fuel_energy = {}, {}, {}, {}
     for fuel_key, pattern in FUEL_FILE_PATTERNS.items():
-        files = discover_csv_files(SETTINGS.raw_data_dir, pattern=pattern)
+        files = discover_csv_files(SETTINGS.synthetic_data_dir, pattern=pattern)
         clean, _ = run_pipeline(load_all(files))
         fuel_clean[fuel_key] = clean
         stl_result = stl_decompose(clean)
@@ -221,14 +222,14 @@ def test_build_analyst_report_household_sections_on_real_data():
     )
 
     assert analyst_report.fuel_mix_finding is not None
-    assert "Gas accounts for 65%" in analyst_report.fuel_mix_finding.narrative
+    assert "Gas accounts for 84%" in analyst_report.fuel_mix_finding.narrative
 
     assert analyst_report.weather_sensitivity_finding is not None
-    assert "gas accounts for 89%" in analyst_report.weather_sensitivity_finding.narrative
-    assert "electricity accounts for 11%" in analyst_report.weather_sensitivity_finding.narrative
+    assert "gas accounts for 95%" in analyst_report.weather_sensitivity_finding.narrative
+    assert "electricity accounts for 5%" in analyst_report.weather_sensitivity_finding.narrative
 
     assert analyst_report.largest_cost_driver is not None
-    assert "Electricity" in analyst_report.largest_cost_driver  # gas is cheaper per kWh, so costs less overall
+    assert "Gas" in analyst_report.largest_cost_driver  # gas dominates both consumption and cost here
 
     assert set(analyst_report.per_fuel_findings) == {"electricity", "gas"}
     assert len(analyst_report.per_fuel_findings["electricity"]) > 0
@@ -245,7 +246,7 @@ def test_build_analyst_report_without_fuel_dicts_leaves_household_sections_none(
     """Omitting the fuel_* dicts (the pre-existing call signature) must produce the same
     single-fuel report as before -- these Task 10/11 additions are opt-in, not required."""
     warnings.filterwarnings("ignore")
-    files = discover_csv_files(SETTINGS.raw_data_dir)
+    files = discover_csv_files(SETTINGS.synthetic_data_dir)
     clean, report = run_pipeline(load_all(files))
     stl_result = stl_decompose(clean)
 

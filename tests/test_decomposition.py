@@ -79,8 +79,8 @@ def test_interpret_decomposition_omits_caveat_with_enough_history():
     assert "extra caution" not in text
 
 
-def test_stl_decompose_runs_on_real_data_without_exceptions():
-    files = discover_csv_files(SETTINGS.raw_data_dir)
+def test_stl_decompose_runs_on_synthetic_data_without_exceptions():
+    files = discover_csv_files(SETTINGS.synthetic_data_dir)
     raw = load_all(files)
     clean, _ = run_pipeline(raw)
 
