@@ -22,9 +22,9 @@ def test_full_pipeline_over_synthetic_data():
     raw = load_all(files)
     clean, report = run_pipeline(raw)
 
-    assert report.n_months == 60
+    assert report.n_months == 61
     assert clean["month_start"].min() == pd.Timestamp("2021-07-01")
-    assert clean["month_start"].max() == pd.Timestamp("2026-06-01")
+    assert clean["month_start"].max() == pd.Timestamp("2026-07-01")
     assert report.missing_months == []
     assert report.duplicates_removed == 0
     assert report.conflicts == []
@@ -34,8 +34,8 @@ def test_full_pipeline_over_synthetic_data():
     assert clean["cost_gbp"].sum() > 0
 
     summary = describe(clean["consumption_kwh"])
-    assert summary.n == 60
+    assert summary.n == 61
 
     kpis = compute_kpis(clean, months=12)
     assert len(kpis) == 6
-    assert all(k.previous is not None for k in kpis)  # 60 months >= 2*12
+    assert all(k.previous is not None for k in kpis)  # 61 months >= 2*12

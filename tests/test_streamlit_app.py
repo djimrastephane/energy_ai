@@ -468,8 +468,8 @@ def test_fuel_selectbox_offers_all_three_fuels_and_switching_is_exception_free()
 
 
 def test_seasonal_tab_plain_language_summary_matches_synthetic_data():
-    """On the bundled 60-month synthetic dataset: strong seasonality, a stable trend, January
-    2023 as the largest unexplained deviation (+595 kWh)."""
+    """On the bundled 61-month synthetic dataset: strong seasonality, a stable trend, January
+    2023 as the largest unexplained deviation (+575 kWh)."""
     at = AppTest.from_file(str(APP_PATH))
     at.run(timeout=60)
 
@@ -483,7 +483,7 @@ def test_seasonal_tab_plain_language_summary_matches_synthetic_data():
     assert metrics["Seasonal influence"][0] == "Strong"
     assert metrics["Long-term trend"][0] == "Stable"
     assert metrics["Largest unexplained deviation"][0] == "Jan 2023"
-    assert metrics["Largest unexplained deviation"][1] == "+595 kWh"
+    assert metrics["Largest unexplained deviation"][1] == "+575 kWh"
 
 
 def _synthetic_daily_weather(start: str, end: str):
@@ -559,7 +559,7 @@ def test_weather_on_renders_severe_weather_context_without_network(monkeypatch):
     # so this test still checks the line renders when it's supposed to.
     month_tab = _tab(at, "How did this month compare?")
     month_select = next(sb for sb in month_tab.get("selectbox") if sb.label == "Month")
-    month_select.set_value(pd.Timestamp("2025-12-01")).run(timeout=60)
+    month_select.set_value(pd.Timestamp("2024-12-01")).run(timeout=60)
     month_tab = _tab(at, "How did this month compare?")
     assert list(month_tab.exception) == []
     month_markdown = " ".join(md.value for md in month_tab.get("markdown"))

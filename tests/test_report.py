@@ -153,9 +153,10 @@ def test_build_analyst_report_end_to_end_on_synthetic_data():
     assert analyst_report.executive_summary
     assert analyst_report.overall_assessment
     assert len(analyst_report.findings) > 0
-    # November 2022 is the known, previously-verified strongest anomaly in this synthetic dataset.
+    # January 2023 (the generator's deliberate cold-snap gas spike) is the known,
+    # previously-verified strongest anomaly in this synthetic dataset.
     assert analyst_report.biggest_finding is not None
-    assert "November 2022" in analyst_report.biggest_finding.narrative
+    assert "January 2023" in analyst_report.biggest_finding.narrative
     # Data quality is High here: unlike the real household export this suite used to run
     # against, the bundled synthetic dataset's last row is already a complete month, so the
     # in-progress-month downgrade (audit finding F1) never fires in this specific check --
@@ -164,7 +165,7 @@ def test_build_analyst_report_end_to_end_on_synthetic_data():
     assert analyst_report.confidence["data_quality"].level == "High"
     assert "clean history" in analyst_report.confidence["data_quality"].reason.lower()
     assert set(analyst_report.confidence) == {"data_quality", "weather_model", "forecast", "anomaly_detection"}
-    # November 2022 was flagged by all 3 anomaly methods -> High confidence.
+    # January 2023 was flagged by all 3 anomaly methods -> High confidence.
     assert analyst_report.confidence["anomaly_detection"].level == "High"
     assert analyst_report.largest_saving is None  # no weather model supplied in this test
     assert NO_SAVINGS_MESSAGE in analyst_report.executive_summary

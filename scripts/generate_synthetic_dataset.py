@@ -45,7 +45,7 @@ from src.weather import (
 
 SEED = 42
 START = pd.Timestamp("2021-07-01")
-END = pd.Timestamp("2026-06-01")  # inclusive; 60 complete months (5 years)
+END = pd.Timestamp("2026-07-01")  # inclusive; 61 complete months
 OUT_DIR = SETTINGS.project_root / "data" / "synthetic"
 
 # The story beats, chosen to fall well inside [START, END] with margin at
