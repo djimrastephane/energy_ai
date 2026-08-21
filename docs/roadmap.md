@@ -14,8 +14,8 @@ pytest suite (unit + integration + UI smoke test).
 
 - `src/decomposition.py`: STL decomposition of the monthly series (trend /
   seasonal / residual, with seasonal-strength and trend-strength metrics).
-- `src/weather.py`: historical daily temperature for the user's location
-  (Aberdeen, AB21) from the free Open-Meteo API, cached to disk; aggregated
+- `src/weather.py`: historical daily temperature for the configured location
+  (Aberdeen, Union Square area) from the free Open-Meteo API, cached to disk; aggregated
   to monthly heating/cooling degree days; fit as a degree-day "energy
   signature" regression (base load, heating sensitivity, cooling
   sensitivity, R², Durbin-Watson) -- the standard method utility analysts
@@ -389,7 +389,7 @@ full-bill estimates, ending the "consumption cost only" limitation:
 
 - `src/billing.py`: billing periods (the April bill covers 6 Apr - 5 May,
   always exactly `days_in_month` days), per-fuel standing charges
-  (62.77p/34.97p per day; the combined view pays both), 5% VAT on
+  (60.00p/35.00p per day; the combined view pays both), 5% VAT on
   consumption + standing, and a per-month `bill_breakdown` /
   `bill_breakdown_frame`. The exported cost is treated as ex-VAT
   consumption charge -- a documented assumption with an

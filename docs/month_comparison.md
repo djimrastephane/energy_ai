@@ -114,7 +114,7 @@ increase; gas use actually fell") instead of quoting a >100% share.
 - Full bills are estimated as **consumption cost + standing charge +
   VAT** (`src.billing`). The rates live in the sidebar's **Tariff**
   section, defaulting to this household's supplied facts
-  (`config.BillingConfig`: 62.77 p/day electricity and 34.97 p/day gas
+  (`config.BillingConfig`: 60.00 p/day electricity and 35.00 p/day gas
   standing charges, 5% VAT) and editable in-app for other providers;
   the combined view pays both standing charges, and VAT applies to
   consumption + standing. The exported cost is treated as the consumption

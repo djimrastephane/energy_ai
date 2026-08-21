@@ -61,18 +61,18 @@ def test_current_billing_month_is_incomplete():
 
 def test_standing_charge_per_fuel_uses_daily_rate_times_period_days():
     june = pd.Timestamp("2026-06-01")  # 30-day period
-    assert standing_charge_gbp(june, "electricity", CONFIG) == pytest.approx(0.6277 * 30)
-    assert standing_charge_gbp(june, "gas", CONFIG) == pytest.approx(0.3497 * 30)
+    assert standing_charge_gbp(june, "electricity", CONFIG) == pytest.approx(0.60 * 30)
+    assert standing_charge_gbp(june, "gas", CONFIG) == pytest.approx(0.35 * 30)
 
 
 def test_combined_stream_pays_both_standing_charges():
     june = pd.Timestamp("2026-06-01")
-    assert standing_charge_gbp(june, "total", CONFIG) == pytest.approx((0.6277 + 0.3497) * 30)
+    assert standing_charge_gbp(june, "total", CONFIG) == pytest.approx((0.60 + 0.35) * 30)
 
 
 def test_standing_charge_for_months_sums_periods():
     months = [pd.Timestamp("2026-06-01"), pd.Timestamp("2026-07-01")]  # 30 + 31 days
-    assert standing_charge_for_months(months, "gas", CONFIG) == pytest.approx(0.3497 * 61)
+    assert standing_charge_for_months(months, "gas", CONFIG) == pytest.approx(0.35 * 61)
 
 
 # --- bill breakdown -----------------------------------------------------------------------
@@ -81,8 +81,8 @@ def test_standing_charge_for_months_sums_periods():
 def test_bill_breakdown_components_sum_to_total():
     breakdown = bill_breakdown(pd.Timestamp("2026-06-01"), 41.37, "electricity", CONFIG)
     assert breakdown.consumption_cost_gbp == pytest.approx(41.37)
-    assert breakdown.standing_charge_gbp == pytest.approx(0.6277 * 30)
-    assert breakdown.vat_gbp == pytest.approx((41.37 + 0.6277 * 30) * 0.05)
+    assert breakdown.standing_charge_gbp == pytest.approx(0.60 * 30)
+    assert breakdown.vat_gbp == pytest.approx((41.37 + 0.60 * 30) * 0.05)
     assert breakdown.total_bill_gbp == pytest.approx(
         breakdown.consumption_cost_gbp + breakdown.standing_charge_gbp + breakdown.vat_gbp
     )
@@ -93,7 +93,7 @@ def test_bill_breakdown_backs_out_vat_when_export_includes_it():
     config = BillingConfig(export_cost_includes_vat=True)
     breakdown = bill_breakdown(pd.Timestamp("2026-06-01"), 42.0, "gas", config)
     assert breakdown.consumption_cost_gbp == pytest.approx(40.0)  # 42 / 1.05
-    assert breakdown.vat_gbp == pytest.approx((40.0 + 0.3497 * 30) * 0.05)
+    assert breakdown.vat_gbp == pytest.approx((40.0 + 0.35 * 30) * 0.05)
 
 
 def test_bill_breakdown_frame_one_row_per_month_with_period_labels():
@@ -107,7 +107,7 @@ def test_bill_breakdown_frame_one_row_per_month_with_period_labels():
     frame = bill_breakdown_frame(df, "electricity", CONFIG)
     assert len(frame) == 2
     assert frame.iloc[0]["billing_period"] == "06 Apr 2026 - 05 May 2026"
-    assert frame.iloc[0]["total_bill_gbp"] == pytest.approx((37.62 + 0.6277 * 30) * 1.05)
+    assert frame.iloc[0]["total_bill_gbp"] == pytest.approx((37.62 + 0.60 * 30) * 1.05)
 
 
 def test_bill_breakdown_frame_empty_input_returns_typed_empty_frame():

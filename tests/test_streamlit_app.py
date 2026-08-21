@@ -328,8 +328,8 @@ def test_tariff_inputs_drive_bill_estimates():
     at.run(timeout=60)
 
     inputs = {n.label: n for n in at.sidebar.get("number_input")}
-    assert inputs["Electricity standing charge (p/day)"].value == 62.77
-    assert inputs["Gas standing charge (p/day)"].value == 34.97
+    assert inputs["Electricity standing charge (p/day)"].value == 60.0
+    assert inputs["Gas standing charge (p/day)"].value == 35.0
     assert inputs["VAT rate (%)"].value == 5.0
 
     month_tab = _tab(at, "How did this month compare?")
@@ -347,7 +347,7 @@ def test_tariff_inputs_drive_bill_estimates():
     # Default fuel is combined, so both daily rates apply across the billing period's days
     # (which always equal the labelled month's day count).
     selected = next(sb for sb in month_tab.get("selectbox") if sb.label == "Month").value
-    expected_standing = (1.0 + 0.3497) * selected.days_in_month
+    expected_standing = (1.0 + 0.35) * selected.days_in_month
     assert standing_after == f"£{expected_standing:,.2f}"
 
     costs = _tab(at, "Costs")
@@ -641,7 +641,7 @@ def test_weather_location_search_requires_explicit_confirmation(monkeypatch):
     at.run(timeout=60)
 
     location_input = next(t for t in at.sidebar.text_input if "Location" in t.label)
-    assert location_input.value == "Aberdeen, Scotland (AB21 area)"  # the default, unconfirmed
+    assert location_input.value == "Aberdeen, Scotland (Union Square area)"  # the default, unconfirmed
 
     location_input.set_value("Manchester").run(timeout=60)
     assert list(at.exception) == []

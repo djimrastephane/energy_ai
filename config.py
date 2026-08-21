@@ -55,11 +55,10 @@ class LoggingConfig:
 class WeatherConfig:
     """Location and degree-day settings for weather-adjusted analysis.
 
-    The location was provided by the user (Aberdeen, Scotland / postcode
-    area AB21) and geocoded via Open-Meteo's free geocoding API to city-
-    centre coordinates -- close enough to AB21 (a few km) that the
-    difference is immaterial for monthly degree-day regression in a
-    maritime Scottish climate.
+    Set to a public landmark in central Aberdeen (Union Square) rather than
+    the user's actual address, for public deployment -- close enough (a few
+    km at most) that the difference is immaterial for monthly degree-day
+    regression in a maritime Scottish climate.
 
     Degree-day base temperatures follow the standard UK convention (15.5C
     heating base; see e.g. degreedays.net's documentation of UK practice).
@@ -68,9 +67,9 @@ class WeatherConfig:
     finding, not a bug.
     """
 
-    latitude: float = 57.14369
-    longitude: float = -2.09814
-    location_label: str = "Aberdeen, Scotland (AB21 area)"
+    latitude: float = 57.1436
+    longitude: float = -2.0968
+    location_label: str = "Aberdeen, Scotland (Union Square area)"
     timezone: str = "Europe/London"
     base_heat_c: float = 15.5
     base_cool_c: float = 22.0
@@ -161,10 +160,12 @@ class CarbonConfig:
 
 @dataclass(frozen=True)
 class BillingConfig:
-    """Tariff facts supplied by the user (July 2026) for full-bill estimates
-    (``src.billing``): standing charges, VAT, and the billing cycle.
+    """Illustrative tariff facts for full-bill estimates (``src.billing``):
+    standing charges, VAT, and the billing cycle.
 
-    - Standing charges: 62.77 p/day electricity, 34.97 p/day gas.
+    - Standing charges: 60.00 p/day electricity, 35.00 p/day gas (rounded,
+      illustrative figures -- not tied to any individual account -- for
+      public deployment).
     - VAT: 5% (the UK domestic-energy rate), applied to consumption cost +
       standing charge.
     - Billing cycle: each monthly export row labelled month M covers the
@@ -174,17 +175,16 @@ class BillingConfig:
       complete until the 5th of the *following* month has passed.
 
     ``export_cost_includes_vat``: the export's ``Cost (£)`` column is
-    treated as the consumption charge *excluding* VAT, matching the
-    user-specified breakdown (consumption cost + standing cost + VAT).
-    The observed unit rates (~25.2 p/kWh electricity, ~5.7 p/kWh gas in
-    mid-2026) are plausible under either reading, so this is an assumption,
-    not a verified fact -- flip this flag if a bill cross-check shows the
-    export already includes VAT, and ``src.billing`` will back it out
-    instead of adding it twice.
+    treated as the consumption charge *excluding* VAT (consumption cost +
+    standing cost + VAT). Illustrative unit rates (~25 p/kWh electricity,
+    ~6 p/kWh gas) are plausible under either reading, so this is an
+    assumption, not a verified fact -- flip this flag if a bill cross-check
+    shows the export already includes VAT, and ``src.billing`` will back it
+    out instead of adding it twice.
     """
 
-    electricity_standing_gbp_per_day: float = 0.6277
-    gas_standing_gbp_per_day: float = 0.3497
+    electricity_standing_gbp_per_day: float = 0.60
+    gas_standing_gbp_per_day: float = 0.35
     vat_rate: float = 0.05
     billing_cycle_start_day: int = 6
     export_cost_includes_vat: bool = False
