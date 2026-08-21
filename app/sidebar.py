@@ -237,9 +237,9 @@ def render_sidebar() -> tuple[
         vat_rate=vat_pct / 100,
     )
     st.sidebar.caption(
-        "Defaults are this household's energy tariff (July 2026) -- adjust if your provider "
-        "charges differently. Used everywhere a full bill is estimated (consumption + "
-        "standing charge + VAT); the exports themselves carry consumption cost only."
+        "Defaults are illustrative rates -- adjust to match your own provider's tariff. "
+        "Used everywhere a full bill is estimated (consumption + standing charge + VAT); "
+        "the exports themselves carry consumption cost only."
     )
 
     st.sidebar.divider()
