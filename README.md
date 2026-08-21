@@ -156,6 +156,22 @@ Expected format (a real excerpt from the bundled demo dataset,
   months, and implausible values are detected and reported on the Data
   Quality tab.
 
+### Privacy
+
+Files uploaded from the sidebar are read straight from memory and are
+never written to disk or added to Streamlit's server-side cache --
+they, and the downloadable Household Energy Review report built from
+them, live only in that browser session's memory for the duration of
+the session. The app makes two outbound calls, both to
+[Open-Meteo](https://open-meteo.com/) (free, no API key): a geocoding
+lookup for the "Location" field, and a historical-weather fetch for
+the confirmed coordinates. Neither call ever includes billing or
+consumption data -- only location and date range. One caveat: unlike
+the uploaded CSVs, the "Location" search text itself *is* sent to
+Open-Meteo and *is* cached server-side (shared across sessions on that
+server process), so type a general area rather than your exact address
+if that distinction matters to you.
+
 ## Design principles
 
 - **Never invent a number.** Standing charges and VAT aren't in the
