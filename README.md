@@ -91,7 +91,7 @@ forecast figure.
 month vs the same calendar month last year, with fuel and comparison-mode
 controls and the two-period chart.
 
-![Month comparison: June 2026 vs June 2025](docs/screenshots/month_comparison.jpg)
+![Month comparison: July 2026 vs July 2025](docs/screenshots/month_comparison.jpg)
 
 **Ask the Energy Consultant** -- pick a question or type your own; every
 answer states its confidence and cites the evidence behind it, and
