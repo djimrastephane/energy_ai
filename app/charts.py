@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import pandas as pd
 import plotly.graph_objects as go
+import streamlit as st
 from plotly.subplots import make_subplots
 
 from src.anomalies import Anomaly
@@ -21,7 +22,10 @@ from src.changepoints import ChangePoint
 from src.decomposition import STLResult
 
 PALETTE = ["#2a78d6", "#008300", "#e87ba4", "#eda100"]
-_GRID_COLOR = "#e5e5e0"
+# Matches the dark SaaS theme injected by app/theme.py: transparent chart backgrounds
+# (so the surrounding .saas-card / stMetric panels show through) with a muted grid.
+_GRID_COLOR = "#21262d"
+_FONT_COLOR = "#8b949e"
 _MONTH_ORDER = [
     "January",
     "February",
@@ -41,14 +45,23 @@ _MONTH_ORDER = [
 def base_layout(fig: go.Figure, title: str, y_title: str, x_title: str = "") -> go.Figure:
     fig.update_layout(
         title=title,
-        template="plotly_white",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font_color=_FONT_COLOR,
         hovermode="x unified",
         legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "x": 0},
         margin={"t": 60, "r": 20, "b": 40, "l": 60},
     )
-    fig.update_xaxes(title=x_title, showgrid=False)
-    fig.update_yaxes(title=y_title, showgrid=True, gridcolor=_GRID_COLOR, gridwidth=1)
+    fig.update_xaxes(title=x_title, showgrid=False, showline=False)
+    fig.update_yaxes(title=y_title, showgrid=True, gridcolor=_GRID_COLOR, gridwidth=1, showline=False)
     return fig
+
+
+def render_chart(fig: go.Figure, **kwargs) -> None:
+    """Render a chart built by this module -- the one place that owns ``st.plotly_chart``'s
+    display options, so the floating mode bar stays off everywhere without repeating the
+    ``config=`` dict at each of the app's ~20 call sites."""
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False}, **kwargs)
 
 
 def monthly_consumption_bar(df: pd.DataFrame) -> go.Figure:
@@ -169,11 +182,14 @@ def stl_components_figure(result: STLResult) -> go.Figure:
         )
     fig.update_layout(
         title="STL Decomposition of Monthly Consumption",
-        template="plotly_white",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font_color=_FONT_COLOR,
         height=650,
         margin={"t": 60, "r": 20, "b": 40, "l": 60},
     )
-    fig.update_yaxes(title_text="kWh", showgrid=True, gridcolor=_GRID_COLOR, gridwidth=1)
+    fig.update_yaxes(title_text="kWh", showgrid=True, gridcolor=_GRID_COLOR, gridwidth=1, showline=False)
+    fig.update_xaxes(showline=False)
     return fig
 
 

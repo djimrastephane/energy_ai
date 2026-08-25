@@ -11,6 +11,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from app.charts import render_chart
 from app.charts_forecast import forecast_fan_chart, model_comparison_bar
 from config import SETTINGS, BillingConfig
 from src.billing import standing_charge_for_months
@@ -54,6 +55,15 @@ def generate_multi_fuel_forecast_cached(
     return results
 
 
+def resolve_model_name(model_choice: str) -> str:
+    """The sidebar's "Auto (best by CV)" sentinel -> the "auto" ``model_name`` that
+    ``generate_forecast_cached`` expects; any other value is a forced model, passed through
+    as-is. Shared with ``streamlit_app.main()`` so the primary forecast (feeding the
+    Household Energy Review, Executive Briefing, and Consultant) honors the same sidebar
+    choice as this tab's own chart, instead of the two silently diverging."""
+    return "auto" if model_choice == "Auto (best by CV)" else model_choice
+
+
 def _trailing_actual_kwh(clean: pd.DataFrame, months: int) -> float | None:
     """Sum of the last ``months`` *complete* months of actuals -- the in-progress month is
     excluded so the forecast isn't compared against a period with a month-to-date stub."""
@@ -81,7 +91,7 @@ def render_forecasting(
     billing_config: BillingConfig | None = None,
 ) -> None:
     billing_config = billing_config or SETTINGS.billing
-    model_name = "auto" if model_choice == "Auto (best by CV)" else model_choice
+    model_name = resolve_model_name(model_choice)
 
     try:
         result = generate_forecast_cached(clean, horizon, model_name)
@@ -145,7 +155,7 @@ def render_forecasting(
                 help="Sum of the expected (P50) values for the forecast's June-August months.",
             )
 
-    st.plotly_chart(forecast_fan_chart(clean, result), width="stretch")
+    render_chart(forecast_fan_chart(clean, result))
     st.caption(
         "The forecast assumes your future use resembles previous years and that nothing major "
         "changes -- no heat pump, no change in occupancy or tariff, no new large appliances. "
@@ -182,7 +192,7 @@ def render_forecasting(
             "accuracy. The chart projects the chosen model to the full horizon; that projection "
             "isn't itself cross-validated at longer lead times."
         )
-        st.plotly_chart(model_comparison_bar(result.comparison, result.model_name), width="stretch")
+        render_chart(model_comparison_bar(result.comparison, result.model_name))
         display = result.comparison.rename(
             columns={"model": "Model", "mae": "MAE", "rmse": "RMSE", "mape": "MAPE (%)", "n_folds": "CV folds"}
         ).round(1)

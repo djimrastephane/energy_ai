@@ -23,7 +23,7 @@ from typing import Final, cast
 import pandas as pd
 import streamlit as st
 
-from app.charts import year_over_year_overlay
+from app.charts import render_chart, year_over_year_overlay
 from app.charts_month import same_month_history_bar, two_month_grouped_bar
 from config import SETTINGS, BillingConfig
 from src.anomalies import Anomaly
@@ -426,7 +426,7 @@ def _render_long_term(clean_df: pd.DataFrame) -> None:
             col.metric(f"{kpi.label} (trailing 12 months)", value, delta, delta_color="off")
     # Explicit key: the same overlay chart also renders under Advanced, and two
     # identical figures would collide on Streamlit's auto-generated element ID.
-    st.plotly_chart(year_over_year_overlay(clean_df), width="stretch", key="month_long_term_overlay")
+    render_chart(year_over_year_overlay(clean_df), key="month_long_term_overlay")
     st.caption(
         "One line per year, aligned by calendar month. The 'Advanced' tab holds the "
         "full whole-period analysis: annual totals, fuel comparisons, and underlying trend."
@@ -471,7 +471,7 @@ def render_month_comparison(
     if featured.percentage_change is not None:
         chart = two_month_grouped_bar(ctx.comparisons, _comparison_label(featured))
         if chart is not None:
-            st.plotly_chart(chart, width="stretch")
+            render_chart(chart)
         if featured.comparison_mode == "typical_month" and featured.same_month_low_kwh is not None:
             month_name = featured.selected_month.strftime("%B")
             st.caption(
@@ -488,7 +488,7 @@ def render_month_comparison(
     )
     if history_chart is not None and len(featured.same_month_years) >= 1:
         st.subheader("This calendar month, year by year")
-        st.plotly_chart(history_chart, width="stretch")
+        render_chart(history_chart)
 
     _render_explanation(ctx)
     _render_costs_and_carbon(ctx)

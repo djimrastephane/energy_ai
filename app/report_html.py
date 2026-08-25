@@ -69,16 +69,20 @@ def _headline_kpis(household_df: pd.DataFrame) -> list[dict[str, str]]:
     return out
 
 
-def _forecast_narrative(forecast: ForecastResult | None, household_df: pd.DataFrame) -> str | None:
+def _forecast_narrative(
+    forecast: ForecastResult | None, household_df: pd.DataFrame, model_forced: bool = False
+) -> str | None:
     if forecast is None or household_df.empty:
         return None
     unit_rate = safe_divide(float(household_df["cost_gbp"].sum()), float(household_df["consumption_kwh"].sum()))
     likely = float(forecast.p50.sum()) * unit_rate
     best = float(forecast.p10.sum()) * unit_rate
     worst = float(forecast.p90.sum()) * unit_rate
+    months = len(forecast.forecast_dates)
+    selection_note = "forced via the sidebar" if model_forced else "auto-selected by walk-forward cross-validation"
     return (
-        f"Over the next 12 months, the {forecast.model_name} model (auto-selected by walk-forward "
-        f"cross-validation) predicts a most-likely energy cost of £{likely:,.0f}, with a plausible "
+        f"Over the next {months} months, the {forecast.model_name} model ({selection_note}) "
+        f"predicts a most-likely energy cost of £{likely:,.0f}, with a plausible "
         f"range of £{best:,.0f}-£{worst:,.0f} -- excluding standing charges, which aren't present "
         "in the billing exports."
     )
@@ -131,6 +135,7 @@ def build_household_report_html(
     forecast_12mo: ForecastResult | None,
     weather_enabled: bool,
     preprocessing_report: PreprocessingReport,
+    forecast_model_forced: bool = False,
 ) -> str:
     """Assemble the full report. Returns the complete HTML document as a string."""
     household_df = _household_frame(fuel_frames)
@@ -182,7 +187,7 @@ def build_household_report_html(
                 )
                 break
 
-    forecast_narrative = _forecast_narrative(forecast_12mo, household_df)
+    forecast_narrative = _forecast_narrative(forecast_12mo, household_df, forecast_model_forced)
     forecast_chart = (
         _chart_fragment(forecast_fan_chart(household_df, forecast_12mo), include_js=False)
         if forecast_12mo is not None

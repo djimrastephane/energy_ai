@@ -11,6 +11,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from app.charts import render_chart
 from app.charts_comparisons import annual_comparison_bar
 from src.anomalies import Anomaly
 from src.comparisons import (
@@ -46,7 +47,7 @@ def render_comparisons(
     if annual.empty:
         st.info("Not enough complete calendar years yet for an annual comparison.")
     else:
-        st.plotly_chart(annual_comparison_bar(annual), width="stretch")
+        render_chart(annual_comparison_bar(annual))
         with st.expander("View annual table"):
             st.dataframe(annual, hide_index=True, width="stretch")
 

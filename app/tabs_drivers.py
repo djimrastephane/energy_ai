@@ -15,7 +15,12 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from app.charts import changepoint_timeline, energy_signature_scatter, stl_components_figure
+from app.charts import (
+    changepoint_timeline,
+    energy_signature_scatter,
+    render_chart,
+    stl_components_figure,
+)
 from app.charts_seasonal import seasonal_calendar_profile_figure, seasonal_overview_figure
 from app.sidebar import WEATHER_ENABLED_KEY
 from app.tabs_weather_context import render_weather_impact_summary
@@ -117,7 +122,7 @@ def render_seasonality(
         st.info(summary.unusual_month_context)
 
     st.divider()
-    st.plotly_chart(seasonal_overview_figure(clean, stl_result, anomalies), width="stretch")
+    render_chart(seasonal_overview_figure(clean, stl_result, anomalies))
     st.caption(
         "Bars are actual monthly consumption -- lighter bars belong to a year with incomplete "
         "data. The line is the underlying trend with the regular seasonal swing smoothed out. "
@@ -126,7 +131,7 @@ def render_seasonality(
 
     st.subheader("Which months run high or low?")
     profile = seasonal_profile(stl_result)
-    st.plotly_chart(seasonal_calendar_profile_figure(profile), width="stretch")
+    render_chart(seasonal_calendar_profile_figure(profile))
     st.caption(
         "Positive bars are calendar months that typically run above the household's overall "
         "level; negative bars are months that typically run below it -- both once the "
@@ -160,7 +165,7 @@ def render_seasonality(
 
     st.divider()
     with st.expander("Advanced statistical decomposition"):
-        st.plotly_chart(stl_components_figure(stl_result), width="stretch")
+        render_chart(stl_components_figure(stl_result))
         st.write(interpret_decomposition(stl_result))
         d1, d2 = st.columns(2)
         d1.metric("Seasonal strength", f"{stl_result.seasonal_strength:.0%}")
@@ -229,7 +234,7 @@ def render_weather_adjustment(
         # for an Aberdeen home, not a gap) -- keep the main view heating-only and say so,
         # rather than showing an empty cooling chart. CDD stays computed; the chart moves
         # into Advanced diagnostics.
-        st.plotly_chart(energy_signature_scatter(merged, pdp_hdd, "avg_daily_hdd"), width="stretch")
+        render_chart(energy_signature_scatter(merged, pdp_hdd, "avg_daily_hdd"))
         st.caption(
             "Warm-weather (cooling) electricity effects are too small to detect at this home "
             "-- cooling degree days are near zero across the whole history. Cooling detail "
@@ -238,9 +243,9 @@ def render_weather_adjustment(
     else:
         col1, col2 = st.columns(2)
         with col1:
-            st.plotly_chart(energy_signature_scatter(merged, pdp_hdd, "avg_daily_hdd"), width="stretch")
+            render_chart(energy_signature_scatter(merged, pdp_hdd, "avg_daily_hdd"))
         with col2:
-            st.plotly_chart(energy_signature_scatter(merged, pdp_cdd, "avg_daily_cdd"), width="stretch")
+            render_chart(energy_signature_scatter(merged, pdp_cdd, "avg_daily_cdd"))
 
     st.subheader("Weather-adjusted annual comparison")
     st.caption("Answers: is a year-on-year change more likely weather, or behaviour?")
@@ -272,7 +277,7 @@ def render_weather_adjustment(
         st.write(interpret_energy_signature(result, unit_rate, fuel))
         if cooling_negligible:
             st.markdown("**Cooling (kept out of the main view -- negligible for this home):**")
-            st.plotly_chart(energy_signature_scatter(merged, pdp_cdd, "avg_daily_cdd"), width="stretch")
+            render_chart(energy_signature_scatter(merged, pdp_cdd, "avg_daily_cdd"))
             st.caption(
                 "Cooling degree days (base 22°C) stay computed for reuse in other climates; "
                 "for this household they carry no detectable signal."
@@ -311,7 +316,7 @@ def render_change_points(
         st.warning(stl_error or "Seasonal decomposition is unavailable for this fuel.")
         return
 
-    st.plotly_chart(changepoint_timeline(stl_result.deseasonalized, changepoints), width="stretch")
+    render_chart(changepoint_timeline(stl_result.deseasonalized, changepoints))
 
     if not changepoints:
         st.success("No change points detected -- consumption behaviour looks stable once seasonality is removed.")

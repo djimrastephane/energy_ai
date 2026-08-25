@@ -71,6 +71,7 @@ from app.tabs_forecast import (
     generate_forecast_cached,
     generate_multi_fuel_forecast_cached,
     render_forecasting,
+    resolve_model_name,
 )
 from app.tabs_fuel import render_fuel_breakdown
 from app.tabs_month import build_month_context, render_month_comparison
@@ -78,6 +79,7 @@ from app.tabs_weather_context import (
     build_weather_interpretations,
     load_weather_context,
 )
+from app.theme import apply_production_theme
 from src.changepoints import detect_changepoints
 from src.consultant import ConsultantContext
 from src.weather import WeatherFetchError
@@ -90,6 +92,7 @@ st.set_page_config(
     # the data-upload controls from dominating the very first screen on desktop).
     initial_sidebar_state="collapsed",
 )
+apply_production_theme()
 
 
 def main() -> None:
@@ -141,8 +144,13 @@ def main() -> None:
     energy_result = fuel_energy_results.get(fuel) if weather_enabled else None
     weather_error = fuel_weather_errors.get(fuel) if weather_enabled else None
 
+    # Feeds the Household Energy Review, Executive Briefing, AI Analyst, and Consultant --
+    # honors the sidebar's horizon/model controls (previously hardcoded to 12mo/auto here,
+    # silently diverging from what the Forecasting tab itself showed for the same settings).
+    forecast_model_forced = model_choice != "Auto (best by CV)"
     try:
-        forecast_12mo, forecast_error = generate_forecast_cached(clean, 12, "auto"), None
+        forecast_12mo = generate_forecast_cached(clean, horizon, resolve_model_name(model_choice))
+        forecast_error = None
     except ValueError as exc:
         forecast_12mo, forecast_error = None, str(exc)
 
@@ -164,7 +172,7 @@ def main() -> None:
     # result: the Cost Intelligence button sets the request flag and reruns, and the cached
     # generator makes this a cache hit on every rerun after the first (audit finding F7).
     multi_fuel_forecasts = (
-        generate_multi_fuel_forecast_cached(fuel_frames, horizon=12)
+        generate_multi_fuel_forecast_cached(fuel_frames, horizon=horizon)
         if st.session_state.get("multi_fuel_forecast_requested")
         else None
     )
@@ -216,6 +224,7 @@ def main() -> None:
         comparison_fuel=month_ctx.fuel,
         fuel_merged=fuel_merged if weather_enabled else None,
         billing_config=billing_config,
+        forecast_model_forced=forecast_model_forced,
     )
 
     # --- Household Energy Review download (sidebar, two-step) -----------------------------
@@ -229,6 +238,8 @@ def main() -> None:
         str(clean["month_start"].max()),
         len(clean),
         multi_fuel_forecasts is not None,
+        horizon,
+        model_choice,
     )
     stored = st.session_state.get("household_report")
     if stored is not None and stored[0] != report_fingerprint:
@@ -247,6 +258,7 @@ def main() -> None:
                 forecast_12mo,
                 weather_enabled,
                 report,
+                forecast_model_forced=forecast_model_forced,
             )
             st.session_state["household_report"] = (report_fingerprint, html)
             st.rerun()
@@ -338,7 +350,7 @@ def main() -> None:
     with tab_costs_carbon:
         sub_cost, sub_carbon = st.tabs(["Costs", "Carbon"])
         with sub_cost:
-            render_cost_intelligence(fuel_frames, weather_enabled, billing_config)
+            render_cost_intelligence(fuel_frames, weather_enabled, multi_fuel_forecasts, billing_config)
         with sub_carbon:
             render_carbon(fuel_frames, fuel_merged, fuel_energy_results, weather_enabled)
     with tab_forecast:

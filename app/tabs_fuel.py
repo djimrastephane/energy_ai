@@ -12,6 +12,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from app.charts import render_chart
 from app.charts_fuel import fuel_comparison_bar, fuel_mix_annual_stacked_bar, fuel_share_area
 from src.fuel import combine_fuel_frames, finding_fuel_mix
 
@@ -54,7 +55,7 @@ def render_fuel_breakdown(
     # single shared paragraph (UX audit finding: this was the app's clearest "collection of
     # charts" moment). Every sentence below is simple arithmetic on ``combined`` -- counts,
     # min/max -- not a new statistic.
-    st.plotly_chart(fuel_comparison_bar(combined), width="stretch")
+    render_chart(fuel_comparison_bar(combined))
     gas_higher_months = int((combined["gas_kwh"] > combined["electricity_kwh"]).sum())
     elec_higher_months = int((combined["electricity_kwh"] > combined["gas_kwh"]).sum())
     higher_fuel, higher_months = (
@@ -62,7 +63,7 @@ def render_fuel_breakdown(
     )
     st.caption(f"{higher_fuel} used more energy than the other fuel in {higher_months} of the last {len(combined)} months.")
 
-    st.plotly_chart(fuel_share_area(combined), width="stretch")
+    render_chart(fuel_share_area(combined))
     min_share = combined["electricity_share_pct"].min()
     max_share = combined["electricity_share_pct"].max()
     st.caption(
@@ -71,7 +72,7 @@ def render_fuel_breakdown(
         "swings with the seasons."
     )
 
-    st.plotly_chart(fuel_mix_annual_stacked_bar(combined), width="stretch")
+    render_chart(fuel_mix_annual_stacked_bar(combined))
     st.caption(
         "Each bar splits that year's total energy between electricity (bottom) and gas (top) -- "
         "bar height shows whether total usage is rising or falling year to year; the split within "

@@ -75,6 +75,10 @@ class ConsultantContext:
     # The sidebar's Tariff settings (standing charges, VAT) for full-bill estimates;
     # None falls back to the config defaults.
     billing_config: BillingConfig | None = None
+    # Whether the sidebar forced a specific forecasting model rather than letting
+    # cross-validation pick -- feeds answer_forecast's "auto-selected" vs. "forced via the
+    # sidebar" wording, so it stays true once model_choice actually reaches forecast_12mo.
+    forecast_model_forced: bool = False
 
 
 def answer_bill_change(ctx: ConsultantContext) -> ConsultantAnswer:
@@ -173,11 +177,13 @@ def answer_forecast(ctx: ConsultantContext) -> ConsultantAnswer:
     likely_gbp = float(ctx.forecast_12mo.p50.sum()) * unit_rate
     best_gbp = float(ctx.forecast_12mo.p10.sum()) * unit_rate
     worst_gbp = float(ctx.forecast_12mo.p90.sum()) * unit_rate
+    months = len(ctx.forecast_12mo.forecast_dates)
+    selection_note = "forced via the sidebar" if ctx.forecast_model_forced else "auto-selected by cross-validation"
     # Whole pounds (bootstrap bands don't support penny precision), and "energy cost" rather
     # than "bill" -- the billing exports carry consumption cost only, no standing charges.
     answer = (
-        f"Over the next 12 months, the {ctx.forecast_12mo.model_name} model (auto-selected by "
-        f"cross-validation) predicts a most-likely energy cost of £{likely_gbp:,.0f} (plausible "
+        f"Over the next {months} months, the {ctx.forecast_12mo.model_name} model ({selection_note}) "
+        f"predicts a most-likely energy cost of £{likely_gbp:,.0f} (plausible "
         f"range £{best_gbp:,.0f}-£{worst_gbp:,.0f}), excluding standing charges."
     )
     evidence = [f"Model: {ctx.forecast_12mo.model_name}", f"P50 forecast: {ctx.forecast_12mo.p50.sum():,.0f} kWh"]

@@ -169,27 +169,30 @@ def render_executive_briefing(
         st.write(NO_SAVINGS_MESSAGE)
 
     st.divider()
-    st.subheader("Forecast: expected annual energy cost")
+    st.subheader("Forecast: expected energy cost")
     if forecast_error:
         st.info(f"Forecast unavailable: {forecast_error}")
     elif forecast_12mo is not None:
+        horizon_months = len(forecast_12mo.forecast_dates)
         unit_rate = clean["cost_gbp"].sum() / clean["consumption_kwh"].sum()
         expected = float(forecast_12mo.p50.sum())
-        tooltip = (
-            "The model's central estimate. This is consumption cost only; the caption below adds "
-            "standing charges and VAT. See 'What should I expect next?' for the lower/upper "
-            "plausible range and how sure the model is."
-        )
-        # Whole pounds: bootstrap uncertainty bands don't support penny precision.
-        st.metric("Expected", f"£{expected * unit_rate:,.0f}", help=tooltip)
+        consumption_cost = expected * unit_rate
         standing = standing_charge_for_months(list(forecast_12mo.forecast_dates), fuel, billing_config)
         vat_rate = billing_config.vat_rate
-        total_bill = (expected * unit_rate + standing) * (1 + vat_rate)
+        total_bill = (consumption_cost + standing) * (1 + vat_rate)
+        tooltip = (
+            "The model's central estimate, including standing charges and VAT. See "
+            "'What should I expect next?' for the lower/upper plausible range and how sure the "
+            "model is."
+        )
+        # Whole pounds: bootstrap uncertainty bands don't support penny precision. Label names
+        # the actual horizon (the sidebar's "Forecast horizon (months)" slider) rather than
+        # assuming 12 -- this used to always be 12 regardless of the slider.
+        st.metric(f"Expected {horizon_months}-month bill", f"£{total_bill:,.0f}", help=tooltip)
         st.caption(
-            f"This is consumption cost only. Adding ≈ £{standing:,.0f} standing charges and "
-            f"{vat_rate:.0%} VAT gives an estimated total bill of ≈ £{total_bill:,.0f} (expected "
-            "case). See 'What should I expect next?' for the chart, plausible range, seasonal "
-            "expectations, and model details."
+            f"£{consumption_cost:,.0f} consumption + ≈ £{standing:,.0f} standing charges, "
+            f"{vat_rate:.0%} VAT (expected case). See 'What should I expect next?' for the "
+            "chart, plausible range, seasonal expectations, and model details."
         )
     else:
         st.info("Not enough history for a cross-validated forecast yet.")

@@ -10,12 +10,12 @@ from typing import Literal
 import pandas as pd
 import streamlit as st
 
-from app.tabs_forecast import generate_multi_fuel_forecast_cached
 from app.tabs_month import FUEL_DISPLAY_LABELS
 from config import SETTINGS, BillingConfig
 from src.benchmarking import compare_to_benchmark
 from src.billing import bill_breakdown_frame
 from src.cost_engine import compute_combined_cost_breakdown, forecast_bill_by_fuel
+from src.forecast_evaluation import ForecastResult
 from src.ingestion import EnergyType
 from src.utils import format_gbp
 
@@ -85,6 +85,7 @@ def _render_bill_breakdown(
 def render_cost_intelligence(
     fuel_clean_dfs: dict[EnergyType, pd.DataFrame],
     weather_enabled: bool,
+    multi_fuel_forecasts: dict[EnergyType, ForecastResult] | None,
     billing_config: BillingConfig | None = None,
 ) -> None:
     billing_config = billing_config or SETTINGS.billing
@@ -154,16 +155,18 @@ def render_cost_intelligence(
         # already set -- removes the old cross-tab render-order dependency (audit finding F7).
         st.rerun()
 
-    if not st.session_state.get("multi_fuel_forecast_requested"):
+    # Computed once in main() (shared with the Comparisons tab, same object -- audit finding
+    # F7's "computing twice would let the surfaces silently drift out of sync" applies here
+    # too: this tab used to recompute its own copy with a hardcoded 12-month horizon,
+    # ignoring the sidebar's slider and diverging from what Comparisons showed).
+    if multi_fuel_forecasts is None:
         st.info(
             "Runs the full cross-validated forecast model suite for Electricity, Gas, and Total "
             "(up to 8 models each) -- opt-in rather than automatic, since it's the slowest "
             "computation in the app. Click the button above to run it."
         )
         return
-
-    forecast_results = generate_multi_fuel_forecast_cached(fuel_clean_dfs, horizon=12)
-    if not forecast_results:
+    if not multi_fuel_forecasts:
         st.warning("No fuel had enough history for a cross-validated forecast.")
         return
 
@@ -171,7 +174,7 @@ def render_cost_intelligence(
         fuel: (df["cost_gbp"].sum() / df["consumption_kwh"].sum()) if not df.empty else 0.0
         for fuel, df in fuel_clean_dfs.items()
     }
-    comparison = forecast_bill_by_fuel(forecast_results, unit_rates)
+    comparison = forecast_bill_by_fuel(multi_fuel_forecasts, unit_rates)
     bill_display = comparison.per_fuel.rename(
         columns={
             "fuel": "Fuel",

@@ -15,6 +15,7 @@ import streamlit as st
 from app.charts import (
     annual_totals_bar,
     monthly_consumption_bar,
+    render_chart,
     rolling_average_line,
     year_over_year_overlay,
 )
@@ -27,7 +28,7 @@ def render_consumption_analysis(period_df: pd.DataFrame) -> None:
     # single shared caption (UX audit finding: this tab, alongside Fuel breakdown, was the
     # app's clearest "collection of charts" moment). The one computed fact below (highest/
     # lowest month) is a plain min/max over data already loaded, not a new statistic.
-    st.plotly_chart(monthly_consumption_bar(period_df), width="stretch")
+    render_chart(monthly_consumption_bar(period_df))
     highest = period_df.loc[period_df["consumption_kwh"].idxmax()]
     lowest = period_df.loc[period_df["consumption_kwh"].idxmin()]
     st.caption(
@@ -38,16 +39,16 @@ def render_consumption_analysis(period_df: pd.DataFrame) -> None:
 
     col1, col2 = st.columns(2)
     with col1:
-        st.plotly_chart(annual_totals_bar(period_df), width="stretch")
+        render_chart(annual_totals_bar(period_df))
     with col2:
-        st.plotly_chart(year_over_year_overlay(period_df), width="stretch")
+        render_chart(year_over_year_overlay(period_df))
     st.caption(
         "Annual totals on the left, each year's monthly shape overlaid on the right -- lines "
         "sitting close together mean a stable year-to-year pattern; lines drifting apart mean "
         "usage is trending up or down."
     )
 
-    st.plotly_chart(rolling_average_line(period_df, window=3), width="stretch")
+    render_chart(rolling_average_line(period_df, window=3))
     st.caption(
         "A 3-month rolling average smooths out month-to-month noise so the underlying trend is "
         "easier to see through the normal seasonal swings."

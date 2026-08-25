@@ -10,7 +10,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from app.charts import anomaly_scatter
+from app.charts import anomaly_scatter, render_chart
 from app.tabs_weather_context import render_severe_weather_sections
 from src.anomalies import Anomaly, interpret_anomalies
 from src.energy_signature import EnergySignatureResult
@@ -41,7 +41,7 @@ def render_anomalies(
         return
 
     series = clean.set_index("month_start")["consumption_kwh"]
-    st.plotly_chart(anomaly_scatter(series, anomalies), width="stretch")
+    render_chart(anomaly_scatter(series, anomalies))
     st.write(interpret_anomalies(anomalies))
 
     if not anomalies:
