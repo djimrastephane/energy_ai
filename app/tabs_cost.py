@@ -187,8 +187,8 @@ def render_cost_intelligence(
         standing_charge_for_months(list(multi_fuel_forecasts[fuel].forecast_dates), fuel, billing_config)
         for fuel in per_fuel["fuel"]
     ]
-    for col in ("best_gbp", "likely_gbp", "worst_gbp"):
-        per_fuel[col] = (per_fuel[col] + per_fuel["standing_gbp"]) * (1 + vat_rate)
+    for field in ("best_gbp", "likely_gbp", "worst_gbp"):
+        per_fuel[field] = (per_fuel[field] + per_fuel["standing_gbp"]) * (1 + vat_rate)
     bill_display = per_fuel.rename(
         columns={
             "fuel": "Fuel",
