@@ -13,7 +13,7 @@ import streamlit as st
 from app.tabs_month import FUEL_DISPLAY_LABELS
 from config import SETTINGS, BillingConfig
 from src.benchmarking import compare_to_benchmark
-from src.billing import bill_breakdown_frame
+from src.billing import bill_breakdown_frame, standing_charge_for_months
 from src.cost_engine import compute_combined_cost_breakdown, forecast_bill_by_fuel
 from src.forecast_evaluation import ForecastResult
 from src.ingestion import EnergyType
@@ -174,16 +174,38 @@ def render_cost_intelligence(
         fuel: (df["cost_gbp"].sum() / df["consumption_kwh"].sum()) if not df.empty else 0.0
         for fuel, df in fuel_clean_dfs.items()
     }
+    # forecast_bill_by_fuel() itself stays consumption-only (it also feeds the Consultant's
+    # "excluding standing charges" sentence, and the divergence check below compares two
+    # forecasting approaches on a like-for-like basis, independent of billing assumptions).
+    # This tab's own table adds each fuel's standing charge + VAT from the sidebar's Tariff
+    # section on top, to match the Bill breakdown section directly above it and the
+    # Forecasting/Home tabs, which already show full bills rather than consumption cost alone.
     comparison = forecast_bill_by_fuel(multi_fuel_forecasts, unit_rates)
-    bill_display = comparison.per_fuel.rename(
+    vat_rate = billing_config.vat_rate
+    per_fuel = comparison.per_fuel.copy()
+    per_fuel["standing_gbp"] = [
+        standing_charge_for_months(list(multi_fuel_forecasts[fuel].forecast_dates), fuel, billing_config)
+        for fuel in per_fuel["fuel"]
+    ]
+    for col in ("best_gbp", "likely_gbp", "worst_gbp"):
+        per_fuel[col] = (per_fuel[col] + per_fuel["standing_gbp"]) * (1 + vat_rate)
+    bill_display = per_fuel.rename(
         columns={
             "fuel": "Fuel",
             "model": "Model",
+            "standing_gbp": "Standing charge (£, ex VAT)",
             "best_gbp": "Lower estimate (£)",
             "likely_gbp": "Expected (£)",
             "worst_gbp": "Upper estimate (£)",
         }
-    ).round(0)
+    )[
+        ["Fuel", "Model", "Standing charge (£, ex VAT)", "Lower estimate (£)", "Expected (£)", "Upper estimate (£)"]
+    ].round(0)
     st.dataframe(bill_display, hide_index=True, width="stretch")
+    st.caption(
+        f"Lower/Expected/Upper estimates include each fuel's forecast-horizon standing charge "
+        f"and {vat_rate:.0%} VAT (from the sidebar's Tariff section), on top of the forecasted "
+        "consumption cost."
+    )
     if comparison.divergence_note:
         st.info(comparison.divergence_note)
